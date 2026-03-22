@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const logger = require('../../../utils/logger.js');
+const { getGuildConfig, updateGuildConfig } = require('../../../database/database');
+const { requireLevel } = require('../../../utils/permCheck');
 
 // Importar subcomandos
 const chatClear = require('../subcommands/moderation/chatClear');
@@ -10,6 +12,8 @@ const history = require('../subcommands/moderation/history');
 const unban = require('../subcommands/moderation/unban');
 const removeSanction = require('../subcommands/moderation/removeSanction');
 const setupRoles = require('../subcommands/moderation/setupRoles');
+const bienvenidaConfig = require('../subcommands/moderation/bienvenidaConfig');
+const rolesInfo = require('../subcommands/moderation/rolesInfo');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -27,12 +31,19 @@ module.exports = {
                         .setRequired(true)
                         .addChoices(
                             { name: 'Mod (Warn/Timeout/Kick)', value: 'mod' },
-                            { name: 'Admin (Ban/Remove Sanction)', value: 'admin' }
+                            { name: 'Admin (Ban/Unban/Remove Sanction)', value: 'admin' },
+                            { name: 'Operador/Directiva (Config del bot)', value: 'op' }
                         ))
                 .addRoleOption(option =>
                     option.setName('rol')
                         .setDescription('El rol mínimo requerido.')
                         .setRequired(true))
+        )
+        // ------------------ SUBCOMANDO: ROLES-INFO ------------------
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('roles-info')
+                .setDescription('Muestra los rangos configurados y qué permisos tiene cada uno.')
         )
         // ------------------ SUBCOMANDO: WARN ------------------
         .addSubcommand(subcommand =>
@@ -213,6 +224,106 @@ module.exports = {
                     option.setName('canal')
                         .setDescription('El canal donde se enviará el anuncio. (Opcional)')
                         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+        )
+        // ── BIENVENIDA: SETUP ──────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-setup')
+                .setDescription('Establece el canal de bienvenida y despedida.')
+                .addChannelOption(opt =>
+                    opt.setName('canal')
+                        .setDescription('Canal donde se publicarán los mensajes.')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(true))
+        )
+        // ── BIENVENIDA: MENSAJE ────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-mensaje')
+                .setDescription('Personaliza el mensaje de bienvenida o despedida.')
+                .addStringOption(opt =>
+                    opt.setName('tipo')
+                        .setDescription('Tipo de mensaje.')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Bienvenida', value: 'welcome' },
+                            { name: 'Despedida',  value: 'goodbye' },
+                        ))
+                .addStringOption(opt =>
+                    opt.setName('texto')
+                        .setDescription('Texto del mensaje. Usa {user}, {username}, {server}, {member_count}.')
+                        .setRequired(true)
+                        .setMaxLength(1000))
+        )
+        // ── BIENVENIDA: ESTADO ─────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-estado')
+                .setDescription('Activa o desactiva la bienvenida o despedida.')
+                .addStringOption(opt =>
+                    opt.setName('tipo')
+                        .setDescription('Función a cambiar.')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Bienvenida', value: 'welcome' },
+                            { name: 'Despedida',  value: 'goodbye' },
+                        ))
+                .addStringOption(opt =>
+                    opt.setName('valor')
+                        .setDescription('¿Activar o desactivar?')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Activar',    value: '1' },
+                            { name: 'Desactivar', value: '0' },
+                        ))
+        )
+        // ── BIENVENIDA: ROL-ADD ────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-rol-add')
+                .setDescription('Añade un rol que se asignará automáticamente al entrar.')
+                .addRoleOption(opt =>
+                    opt.setName('rol')
+                        .setDescription('Rol a asignar.')
+                        .setRequired(true))
+        )
+        // ── BIENVENIDA: ROL-REMOVE ─────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-rol-remove')
+                .setDescription('Quita un rol de la asignación automática.')
+                .addRoleOption(opt =>
+                    opt.setName('rol')
+                        .setDescription('Rol a quitar.')
+                        .setRequired(true))
+        )
+        // ── BIENVENIDA: ROL-LISTA ──────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-rol-lista')
+                .setDescription('Muestra los roles de asignación automática configurados.')
+        )
+        // ── BIENVENIDA: VISTA-PREVIA ───────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-vista')
+                .setDescription('Muestra una vista previa de los mensajes de bienvenida y despedida.')
+        )
+        // ── BIENVENIDA: INFO ───────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('bienvenida-info')
+                .setDescription('Muestra la configuración actual de bienvenida y despedida.')
+        )
+        // ── SILENCIADO ROL ─────────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('silenciado-rol')
+                .setDescription('Configura el rol de Silenciado (se asigna/quita con timeout automáticamente).')
+                .addRoleOption(opt =>
+                    opt.setName('rol')
+                        .setDescription('El rol de Silenciado del servidor.')
+                        .setRequired(true))
         ),
 
     async execute(interaction) {
@@ -227,6 +338,8 @@ module.exports = {
                 return await unban.execute(interaction);
             } else if (subcommand === 'setup-roles') {
                 return await setupRoles.execute(interaction);
+            } else if (subcommand === 'roles-info') {
+                return await rolesInfo.execute(interaction);
             } else if (subcommand === 'remove-sanction') {
                 return await removeSanction.execute(interaction);
             } else if (subcommand === 'chat-clear') {
@@ -235,6 +348,13 @@ module.exports = {
                 return await updateStaff.execute(interaction);
             } else if (subcommand === 'anuncio') {
                 return await anuncio.execute(interaction);
+            } else if (subcommand.startsWith('bienvenida-')) {
+                return await bienvenidaConfig.execute(interaction);
+            } else if (subcommand === 'silenciado-rol') {
+                if (!await requireLevel(interaction, getGuildConfig(interaction.guild.id), 'op')) return;
+                const rol = interaction.options.getRole('rol');
+                updateGuildConfig(interaction.guild.id, 'silenciado_role_id', rol.id);
+                return interaction.reply({ content: `✅ Rol de Silenciado configurado: ${rol}`, ephemeral: true });
             } else {
                 logger.warn(`Subcomando desconocido: ${subcommand}`);
                 return await interaction.reply({ content: '❌ Subcomando desconocido.', ephemeral: true });

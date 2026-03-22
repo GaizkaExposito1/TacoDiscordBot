@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getDatabase, getGuildConfig } = require('../../../../database/database');
+const { getDatabase, getGuildConfig, addPermTimeout } = require('../../../../database/database');
+const { requireLevel } = require('../../../../utils/permCheck');
 const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
 
@@ -56,7 +57,8 @@ async function sendSanctionDM(user, guild, type, reason, duration = null) {
 // Función auxiliar para parsear tiempo (ej: 1h, 1d) a milisegundos
 function parseDuration(durationStr) {
     if (!durationStr) return null;
-    if (durationStr.toLowerCase() === 'perm' || durationStr.toLowerCase() === 'permanente') return null;
+    const lower = durationStr.toLowerCase();
+    if (lower === 'perm' || lower === 'permanente') return 'PERM';
 
     const regex = /^(\d+)([smhdMy])$/;
     const match = durationStr.match(regex);
@@ -85,36 +87,10 @@ module.exports = {
         const moderator = interaction.user;
         const guild = interaction.guild;
 
-        // --- VERIFICACIÓN DE ROLES CONFIGURADOS ---
+        // --- VERIFICACIÓN DE ROLES ---
         const config = getGuildConfig(guild.id);
-        const modRoleId = config.mod_min_role_id;
-        const adminRoleId = config.admin_min_role_id;
-
-        // Definir qué nivel requiere cada acción
         const requiredLevel = ['ban'].includes(action) ? 'admin' : 'mod';
-        const requiredRoleId = requiredLevel === 'admin' ? adminRoleId : modRoleId;
-
-        if (requiredRoleId) {
-            const hasRole = interaction.member.roles.cache.has(requiredRoleId);
-            const isDiscordAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-            
-            if (!hasRole && !isDiscordAdmin) {
-                const roleLabel = requiredLevel === 'admin' ? 'Administración' : 'Moderación';
-                return interaction.reply({ 
-                    content: `❌ No tienes el rol configurado para usar comandos de **${roleLabel}**.`, 
-                    ephemeral: true 
-                });
-            }
-        } else {
-            // Si no hay rol configurado, pedimos permisos de administrador por defecto para evitar abusos
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ 
-                    content: '❌ El sistema de roles de moderación no ha sido configurado. Un administrador debe usar `/moderation setup-roles` primero.', 
-                    ephemeral: true 
-                });
-            }
-        }
-
+        if (!await requireLevel(interaction, config, requiredLevel)) return;
         // --- FIN DE VERIFICACIÓN DE ROLES ---
 
         // Verificar si el bot tiene permisos
@@ -151,15 +127,30 @@ module.exports = {
                 const durationMs = parseDuration(durationStr);
 
                 if (!durationMs) {
-                    return interaction.reply({ content: '❌ Formato de duración inválido. Usa: 10m, 1h, 1d.', ephemeral: true });
+                    return interaction.reply({ content: '❌ Formato de duración inválido. Usa: 10m, 1h, 1d, 28d o `perm` para permanente.', ephemeral: true });
                 }
 
-                if (durationMs > 2419200000) { // 28 días máximo de Discord
-                    return interaction.reply({ content: '❌ El tiempo máximo de timeout es de 28 días.', ephemeral: true });
+                if (durationMs === 'PERM') {
+                    const maxMs = 28 * 24 * 60 * 60 * 1000;
+                    await targetMember.timeout(maxMs, reason);
+                    addPermTimeout(guild.id, targetUser.id, reason);
+                    recordSanction(guild.id, targetUser.id, moderator.id, 'timeout', reason, 'permanente');
+                    const dmSent = await sendSanctionDM(targetUser, guild, 'timeout', reason, 'Permanente');
+                    dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';
+                    return interaction.reply({
+                        embeds: [simpleEmbed('Timeout Permanente Aplicado', `✅ **${targetUser.tag}** ha sido silenciado **permanentemente**.\n**Razón:** ${reason}${dmStatus}`, '#ff6600')]
+                    });
+                }
+
+                if (durationMs > 2419200000) {
+                    return interaction.reply({ content: '❌ El tiempo máximo de timeout es de 28 días. Usa `perm` para timeout permanente.', ephemeral: true });
                 }
 
                 await targetMember.timeout(durationMs, reason);
                 recordSanction(guild.id, targetUser.id, moderator.id, 'timeout', reason, durationStr);
+                // Asignar rol silenciado si está configurado
+                const silenciadoRoleId = config.silenciado_role_id;
+                if (silenciadoRoleId) await targetMember.roles.add(silenciadoRoleId, `Timeout ${durationStr} aplicado`).catch(() => {});
                 
                 const dmSent = await sendSanctionDM(targetUser, guild, 'timeout', reason, durationStr);
                 dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';

@@ -1,74 +1,76 @@
 # 🤖 Documentación Oficial del Bot
 
-Este bot de Discord es un sistema avanzado de gestión de tickets, diseñado para ser modular y configurable.
+Bot de Discord integral para la gestión de comunidades: tickets, moderación, auditoría, sugerencias y bienvenida.
 
 ## 🛠️ Comandos Disponibles
 
-### ⚙️ Configuración (`/config`)
-Comando principal para configurar el sistema. Requiere permisos de Administrador.
+### 🎫 Tickets (`/tickets`)
+Comando principal para el sistema de soporte. Requiere permisos de Administrador para la configuración.
 
-- **/config roles staff [role]**: Asigna el rol que podrá ver y gestionar los tickets.
-- **/config roles admin [role]**: Asigna el rol de super-administrador.
-- **/config logs [canal]**: Establece dónde se enviarán los registros de auditoría generales.
-- **/config transcripciones [canal]**: Establece un canal exclusivo para guardar las transcripciones HTML de los tickets cerrados.
-- **/config tickets categoria [id]**: Define en qué categoría de Discord se crearán los tickets nuevos.
-- **/config tickets limite [numero]**: Establece el máximo de tickets simultáneos por usuario.
-- **/config departamentos agregar [nombre] [emoji] [descripcion]**: Crea un nuevo departamento.
-- **/config departamentos eliminar [id]**: Elimina un departamento existente.
-- **/config departamento-formulario [id] [pregunta] [placeholder] [multilinea]**: Personaliza la pregunta del formulario para un departamento específico.
-- **/config ver**: Muestra la configuración actual y la lista de departamentos.
+- **/tickets setup**: Envía el panel con el menú de departamentos al canal actual.
+- **/tickets add/remove [usuario]**: Gestiona el acceso de usuarios al ticket actual.
+- **/tickets close [razon]**: Cierra el ticket y genera una transcripción HTML.
+- **/tickets claim / unclaim**: Reclama o libera un ticket (staff).
+- **/tickets stats**: Estadísticas globales de tickets del servidor.
+- **/tickets staff-stats [usuario] [dias]**: Estadísticas de rendimiento del staff.
+- **/tickets ratings [usuario]**: Valoraciones recibidas.
+- **/tickets config ver**: Muestra la configuración actual.
+- **/tickets config roles [staff] [admin]**: Asigna los roles del sistema.
+- **/tickets config logs [canal]**: Canal de logs de auditoría de tickets.
+- **/tickets config transcripciones [canal]**: Canal exclusivo para transcripciones.
+- **/tickets config categoria [categoria]**: Categoría de Discord donde se crean los tickets.
+- **/tickets config contador [modo]**: Modo de numeración — `global` (contador único) o `category` (por departamento).
+- **/tickets config dept-add/dept-del**: Gestión de departamentos.
+- **/tickets config preguntas-add/edit/del/list [departamento]**: Gestión de preguntas del formulario.
 
-### 📩 Configuración del Panel (`/setup-tickets`)
-Requiere permisos de Administrador.
-- **/setup-tickets**: Envía el panel de creación al canal actual. Este panel incluye un **menú desplegable** con los departamentos configurados.
+### 📢 Sugerencias (`/suggestions`)
+- **/suggestions setup [tipo] [canal]**: Configura el canal de sugerencias y el de implementadas.
+- **/suggestions send**: Envía una sugerencia mediante modal.
+- **/suggestions action [url] [estado] [razon]**: Gestiona una sugerencia (staff).
 
-### 🎫 Gestión de Tickets (`/ticket`)
-Comandos para gestionar usuarios dentro de un ticket activo. Solo funciona dentro de canales de ticket.
+### 🛡️ Moderación (`/moderation`)
+- **/moderation warn/kick/ban/timeout [usuario] [razon]**: Aplica una sanción y la persiste en base de datos.
+- **/moderation unban [userid]**: Desbanea por ID.
+- **/moderation remove-sanction [id]**: Elimina una sanción del historial.
+- **/moderation history [usuario]**: Historial de sanciones.
+- **/moderation chat-clear [cantidad]**: Limpia mensajes del canal.
+- **/moderation setup-roles [tipo] [rol]**: Configura el rol mínimo por nivel (Mod/Admin/Op).
+- **/moderation roles-info**: Muestra los roles configurados por nivel.
+- **/moderation bienvenida-setup/mensaje/estado/rol-add/rol-remove/rol-lista/vista/info**: Gestión del sistema de bienvenida y despedida.
 
-- **/ticket add [usuario]**: Añade a un usuario o staff al ticket actual (le da permisos de ver y enviar mensajes).
-- **/ticket remove [usuario]**: Elimina a un usuario del ticket actual.
+### 🔍 Auditoría (`/audit`)
+- **/audit lookup [usuario]**: Expediente completo del usuario (sanciones + tickets).
+- **/audit channel [canal]**: Canal de logs automáticos.
+- **/audit toggle [evento] [on/off]**: Activa/desactiva el log de un evento específico.
+- **/audit toggle-all [on/off]**: Activa/desactiva todos los eventos.
 
-> **Nota:** El comando `/close` ha sido eliminado en favor del botón "Cerrar Ticket" dentro del canal.
+### 📊 Staff (`/staff`)
+- **/staff stats [staff] [dias]**: Estadísticas de un miembro del staff.
+- **/staff leaderboard [periodo]**: Ranking de actividad del equipo.
+
+### ℹ️ General
+- **/botinfo**: Versión, uptime, memoria, miembros y tickets abiertos.
+- **/help**: Menú de ayuda adaptado al nivel del usuario.
 
 ---
 
 ## 🚦 Flujo de Gestión de Tickets
 
-1. **Creación**:
-   El usuario selecciona una categoría en el **menú desplegable** -> Rellena el Formulario (Modal) -> Se crea el canal `ticket-####`.
-   - **Estado:** Abierto
-   - **Visibilidad:** Usuario creador + Rol Staff + Rol Admin.
-   - **Mensaje:** "Reclamado por: Nadie".
-
-2. **Reclamación (Claim)**:
-   Un miembro del staff pulsa el botón **"✋ Reclamar Ticket"**.
-   - **Acción:**
-     - El **Rol de Staff (Global)** pierde el acceso al canal (para limpiar su lista de canales).
-     - El staff que reclamó obtiene acceso individual.
-     - El usuario creador y los Admins mantienen acceso.
-   - **Mensaje:** Se actualiza el embed principal a "Reclamado por: @Staff" y cambia a color Naranja. Se envía un aviso en el chat.
-
-3. **Gestión de Participantes**:
-   El staff encargado puede usar `/ticket add @usuario` para invitar a otros miembros del equipo o usuarios al ticket si necesita ayuda específica, sin tener que liberar el ticket para todos.
-
-4. **Liberación (Unclaim)**:
-   El staff encargado (o un admin) pulsa **"🔓 Liberar Ticket"**.
-   - **Acción:** El **Rol de Staff (Global)** recupera el acceso al canal.
-   - **Mensaje:** Se actualiza a "Reclamado por: Nadie" y color Verde. Se envía un aviso en el chat.
-
-5. **Cierre**:
-   Cualquiera con permisos pulsa **"🔒 Cerrar Ticket"**.
-   - **Acción:**
-     - Se genera una transcripción (HTML).
-     - Se envía al DM del usuario.
-     - Se envía al **Canal de Transcripciones** (si está configurado) o al de Logs.
-     - El ticket se elimina tras 5 segundos.
+1. **Creación**: El usuario selecciona un departamento en el menú → rellena el formulario → se crea el canal `depto-NNNNN`.
+2. **Reclamación**: Staff pulsa **✋ Reclamar Ticket** → el rol staff pierde acceso global, el agente obtiene acceso individual.
+3. **Add/Remove**: El agente puede invitar usuarios adicionales sin liberar el ticket.
+4. **Liberación**: Staff pulsa **🔓 Liberar Ticket** → el rol staff recupera acceso.
+5. **Cierre**: Se pulsa **🔒 Cerrar Ticket** → transcripción HTML generada → enviada al canal de transcripciones y al DM del usuario → canal eliminado → el usuario recibe un formulario de valoración.
 
 ---
 
-## 📂 Estructura de Base de Datos
-El bot utiliza SQLite (`data/taco.db`).
+## 📂 Base de Datos (SQLite)
 
-- **guild_config**: Configuración general (roles, canales, límites).
-- **departments**: Departamentos activos y su configuración de formulario (`form_json`).
-- **tickets**: Registro de tickets creados, usuarios, estado y staff asignado.
+- **`guild_config`**: Configuración general (roles, canales, límites, modo de contador).
+- **`departments`**: Departamentos y formularios (`form_json`), con contador individual.
+- **`tickets`**: Registro de tickets (estado, usuario, agente, valoración, transcripción).
+- **`ticket_messages`**: Mensajes personalizados del sistema (panel, bienvenida, cierre...).
+- **`suggestions`**: Sugerencias con historial de estados.
+- **`sanctions`**: Historial de sanciones de moderación.
+- **`welcome_roles`**: Roles automáticos de bienvenida.
+- **`perm_timeouts`**: Timeouts permanentes (para reaplicado automático).

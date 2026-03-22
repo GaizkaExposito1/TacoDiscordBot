@@ -1,9 +1,13 @@
 const { EmbedBuilder, MessageFlags } = require('discord.js');
 const logger = require('../../../../utils/logger.js');
 const { COLORS } = require('../../../../utils/constants');
+const { getGuildConfig } = require('../../../../database/database');
+const { requireLevel } = require('../../../../utils/permCheck');
 
 module.exports = {
     async execute(interaction) {
+        const config = getGuildConfig(interaction.guild.id);
+        if (!await requireLevel(interaction, config, 'op')) return;
         const usuario = interaction.options.getUser('usuario');
         const rangoStaff = interaction.options.getRole('rango_staff');
         const accion = interaction.options.getString('accion');

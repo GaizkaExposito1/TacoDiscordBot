@@ -1,5 +1,5 @@
-const { PermissionFlagsBits } = require('discord.js');
 const { getDatabase, getGuildConfig } = require('../../../../database/database');
+const { requireLevel } = require('../../../../utils/permCheck');
 const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
 
@@ -12,19 +12,7 @@ module.exports = {
 
         // --- VERIFICACIÓN DE ROLES ---
         const config = getGuildConfig(guild.id);
-        const adminRoleId = config.admin_min_role_id;
-
-        if (adminRoleId) {
-            const hasRole = interaction.member.roles.cache.has(adminRoleId);
-            const isDiscordAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-            
-            if (!hasRole && !isDiscordAdmin) {
-                return interaction.reply({ 
-                    content: `❌ No tienes el rol de Administración configurado para retirar un baneo.`, 
-                    ephemeral: true 
-                });
-            }
-        }
+        if (!await requireLevel(interaction, config, 'admin')) return;
 
         try {
             // Intentar desbanear en Discord

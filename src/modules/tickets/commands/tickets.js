@@ -29,6 +29,7 @@ const {
 } = require('../../../database/database');
 
 const { processTicketClosure, handleClaimTicket, handleUnclaimTicket } = require('../services/ticketService');
+const { requireLevel } = require('../../../utils/permCheck');
 const { replyError, replySuccess, replyInfo, replyWarning } = require('../../../utils/responses');
 const { buildEmbed, simpleEmbed } = require('../../../utils/embeds');
 const { logAudit } = require('../../../utils/audit');
@@ -151,6 +152,8 @@ module.exports = {
             .addSubcommand(sub => sub.setName('mensaje').setDescription('Mensajes personalizados').addStringOption(o=>o.setName('tipo').setDescription('Tipo').setRequired(true).addChoices({name:'Panel',value:'panel'},{name:'Bienvenida',value:'ticket_welcome'},{name:'Cierre',value:'ticket_close'},{name:'Reclamado',value:'ticket_claimed'})).addStringOption(o=>o.setName('titulo').setDescription('Titulo')).addStringOption(o=>o.setName('descripcion').setDescription('Descripcion')).addStringOption(o=>o.setName('color').setDescription('Color')).addStringOption(o=>o.setName('footer').setDescription('Footer')))
             .addSubcommand(sub => sub.setName('dept-add').setDescription('Añadir depto').addStringOption(o=>o.setName('nombre').setDescription('Nombre').setRequired(true)).addStringOption(o=>o.setName('emoji').setDescription('Emoji')).addStringOption(o=>o.setName('descripcion').setDescription('Desc')))
             .addSubcommand(sub => sub.setName('dept-del').setDescription('Eliminar depto').addIntegerOption(o=>o.setName('id').setDescription('ID Depto').setRequired(true)))
+            .addSubcommand(sub => sub.setName('contador').setDescription('Modo de numeración de tickets').addStringOption(o=>o.setName('modo').setDescription('Modo del contador').setRequired(true).addChoices({name:'Global (un único contador para todos)',value:'global'},{name:'Por categoría (contador por departamento)',value:'category'})))
+            .addSubcommand(sub => sub.setName('max-tickets').setDescription('Máximo de tickets abiertos por usuario').addIntegerOption(o=>o.setName('limite').setDescription('Número máximo (1-10)').setRequired(true).setMinValue(1).setMaxValue(10)))
             
             // Aplanando el grupo 'preguntas' de config.js
             .addSubcommand(sub => sub.setName('preguntas-add').setDescription('Añadir pregunta a form').addIntegerOption(o=>o.setName('departamento').setDescription('Depto').setRequired(true).setAutocomplete(true)))
@@ -469,7 +472,7 @@ module.exports = {
 
         // 5. CONFIG GROUP
         if (subcommandGroup === 'config') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return replyError(interaction, 'Permiso denegado.', true);
+            if (!await requireLevel(interaction, config, 'op')) return;
             
             if (subcommand === 'ver') {
                 const conf = getGuildConfig(guild.id);
@@ -496,6 +499,7 @@ module.exports = {
                     { name: 'Categoría Tickets', value: conf.ticket_category_id ? `<#${conf.ticket_category_id}>` : '*No configurada*', inline: true },
                     { name: 'Tickets Máx/Usuario', value: String(conf.max_tickets_per_user ?? 1), inline: true },
                     { name: 'Tickets Creados globalmente', value: String(conf.ticket_counter ?? 0), inline: true },
+                    { name: 'Modo Contador', value: conf.ticket_counter_mode === 'global' ? '🌍 Global' : '📂 Por categoría', inline: true },
                     { name: 'Departamentos', value: deptList, inline: false },
                 );
 
@@ -538,6 +542,17 @@ module.exports = {
                 removeDepartment(options.getInteger('id'), guild.id);
                 updateLivePanel(client, guild.id);
                 return replySuccess(interaction, 'Departamento eliminado.', true);
+            }
+            if (subcommand === 'contador') {
+                const modo = options.getString('modo');
+                updateGuildConfig(guild.id, 'ticket_counter_mode', modo);
+                const modeLabel = modo === 'global' ? 'Global (un único contador compartido)' : 'Por categoría (contador independiente por departamento)';
+                return replySuccess(interaction, `Modo de contador actualizado a **${modeLabel}**.`, true);
+            }
+            if (subcommand === 'max-tickets') {
+                const limite = options.getInteger('limite');
+                updateGuildConfig(guild.id, 'max_tickets_per_user', limite);
+                return replySuccess(interaction, `Máximo de tickets por usuario actualizado a **${limite}**.`, true);
             }
             
             // PREGUNTAS (Flattened logic)

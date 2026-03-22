@@ -86,6 +86,77 @@ function initDatabase() {
             }
         }
 
+        if (!configColumns.some(c => c.name === 'welcome_channel_id')) {
+            logger.info('[DB] Agregando columnas de bienvenida/despedida a guild_config...');
+            try {
+                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_channel_id TEXT').run();
+                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_message TEXT').run();
+                db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_message TEXT').run();
+                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_enabled INTEGER DEFAULT 1').run();
+                db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_enabled INTEGER DEFAULT 1').run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columnas de bienvenida:', e);
+            }
+        }
+
+        if (!configColumns.some(c => c.name === 'mod_min_role_id')) {
+            logger.info('[DB] Agregando columnas mod_min_role_id y admin_min_role_id a guild_config...');
+            try {
+                db.prepare('ALTER TABLE guild_config ADD COLUMN mod_min_role_id TEXT').run();
+                db.prepare('ALTER TABLE guild_config ADD COLUMN admin_min_role_id TEXT').run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columnas de roles de moderación:', e);
+            }
+        }
+
+        if (!configColumns.some(c => c.name === 'op_min_role_id')) {
+            logger.info('[DB] Agregando columna op_min_role_id a guild_config...');
+            try {
+                db.prepare('ALTER TABLE guild_config ADD COLUMN op_min_role_id TEXT').run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columna op_min_role_id:', e);
+            }
+        }
+
+        if (!configColumns.some(c => c.name === 'ticket_counter_mode')) {
+            logger.info('[DB] Agregando columna ticket_counter_mode a guild_config...');
+            try {
+                db.prepare("ALTER TABLE guild_config ADD COLUMN ticket_counter_mode TEXT DEFAULT 'category'").run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columna ticket_counter_mode:', e);
+            }
+        }
+
+        if (!configColumns.some(c => c.name === 'silenciado_role_id')) {
+            logger.info('[DB] Agregando columna silenciado_role_id a guild_config...');
+            try {
+                db.prepare('ALTER TABLE guild_config ADD COLUMN silenciado_role_id TEXT').run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columna silenciado_role_id:', e);
+            }
+        }
+
+        if (!configColumns.some(c => c.name === 'max_tickets_per_user')) {
+            logger.info('[DB] Agregando columna max_tickets_per_user a guild_config...');
+            try {
+                db.prepare('ALTER TABLE guild_config ADD COLUMN max_tickets_per_user INTEGER DEFAULT 1').run();
+            } catch (e) {
+                logger.error('[DB] Error al agregar columna max_tickets_per_user:', e);
+            }
+        }
+        try {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS welcome_roles (
+                    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    role_id  TEXT NOT NULL,
+                    UNIQUE(guild_id, role_id)
+                );
+            `);
+        } catch (e) {
+            logger.error('[DB] Error al crear tabla welcome_roles:', e);
+        }
+
         // Crear tabla de sanciones (Moderación)
         try {
             db.exec(`
@@ -119,6 +190,14 @@ function initDatabase() {
                     user_id         TEXT NOT NULL,
                     unban_at        TEXT NOT NULL,
                     created_at      TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS perm_timeouts (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id     TEXT NOT NULL,
+                    user_id      TEXT NOT NULL,
+                    reason       TEXT,
+                    last_applied TEXT DEFAULT (datetime('now')),
+                    UNIQUE(guild_id, user_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_sanctions_user ON sanctions(user_id, guild_id);
                 CREATE INDEX IF NOT EXISTS idx_sanctions_guild ON sanctions(guild_id);
@@ -228,9 +307,12 @@ function updateGuildConfig(guildId, field, value) {
     const allowed = [
         'staff_role_id', 'admin_role_id', 'log_channel_id', 'ticket_category_id', 
         'max_tickets_per_user', 'panel_channel_id', 'panel_message_id', 
-        'transcript_channel_id', 'mod_min_role_id', 'admin_min_role_id', 
+        'transcript_channel_id', 'mod_min_role_id', 'admin_min_role_id', 'op_min_role_id',
         'suggestions_channel_id', 'suggestions_accepted_id', 'suggestions_denied_id',
-        'updates_channel_id'
+        'updates_channel_id',
+        'welcome_channel_id', 'welcome_message', 'goodbye_message',
+        'welcome_enabled', 'goodbye_enabled',
+        'ticket_counter_mode', 'silenciado_role_id',
     ];
     if (!allowed.includes(field)) throw new Error(`Campo no permitido: ${field}`);
     
@@ -352,8 +434,8 @@ function removeDepartment(id, guildId) {
 // TICKETS
 // ============================================================
 
-function createTicket(guildId, channelId, userId, departmentId, subject) {
-    const ticketNumber = incrementTicketCounter(guildId);
+function createTicket(guildId, channelId, userId, departmentId, subject, preAssignedNumber = null) {
+    const ticketNumber = preAssignedNumber !== null ? preAssignedNumber : incrementTicketCounter(guildId);
     run(`INSERT INTO tickets (guild_id, channel_id, user_id, department_id, subject) VALUES (?, ?, ?, ?, ?)`,
         [guildId, channelId, userId, departmentId, subject]);
     const ticket = queryOne('SELECT * FROM tickets WHERE channel_id = ?', [channelId]);
@@ -647,6 +729,63 @@ function backupDatabase() {
 // Intervalo de backup: cada 6 horas
 const BACKUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+// ============================================================
+// PERM TIMEOUTS
+// ============================================================
+
+function addPermTimeout(guildId, userId, reason) {
+    try {
+        run(`INSERT INTO perm_timeouts (guild_id, user_id, reason, last_applied)
+             VALUES (?, ?, ?, datetime('now'))
+             ON CONFLICT(guild_id, user_id) DO UPDATE SET reason = excluded.reason, last_applied = datetime('now')`,
+            [guildId, userId, reason]);
+        return true;
+    } catch (e) {
+        logger.error('[DB] Error al agregar perm_timeout:', e);
+        return false;
+    }
+}
+
+function getPermTimeouts() {
+    return queryAll('SELECT * FROM perm_timeouts', []);
+}
+
+function updatePermTimeoutLastApplied(id) {
+    run("UPDATE perm_timeouts SET last_applied = datetime('now') WHERE id = ?", [id]);
+}
+
+function removePermTimeout(guildId, userId) {
+    const result = run('DELETE FROM perm_timeouts WHERE guild_id = ? AND user_id = ?', [guildId, userId]);
+    return result.changes > 0;
+}
+
+// ============================================================
+// WELCOME ROLES
+// ============================================================
+
+function getWelcomeRoles(guildId) {
+    return queryAll('SELECT role_id FROM welcome_roles WHERE guild_id = ?', [guildId]);
+}
+
+function addWelcomeRole(guildId, roleId) {
+    try {
+        run('INSERT INTO welcome_roles (guild_id, role_id) VALUES (?, ?)', [guildId, roleId]);
+        return true;
+    } catch (e) {
+        if (e.message?.includes('UNIQUE constraint')) return false;
+        throw e;
+    }
+}
+
+function removeWelcomeRole(guildId, roleId) {
+    const result = run('DELETE FROM welcome_roles WHERE guild_id = ? AND role_id = ?', [guildId, roleId]);
+    return result.changes > 0;
+}
+
+function clearWelcomeRoles(guildId) {
+    run('DELETE FROM welcome_roles WHERE guild_id = ?', [guildId]);
+}
+
 module.exports = {
     backupDatabase,
     deleteTicketHistory,
@@ -694,4 +833,14 @@ module.exports = {
     getSuggestionsByStatus,
     getUserSancions,
     getUserTickets,
+    // Welcome
+    getWelcomeRoles,
+    addWelcomeRole,
+    removeWelcomeRole,
+    clearWelcomeRoles,
+    // Perm Timeouts
+    addPermTimeout,
+    getPermTimeouts,
+    updatePermTimeoutLastApplied,
+    removePermTimeout,
 };

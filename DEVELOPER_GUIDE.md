@@ -8,17 +8,29 @@ El proyecto sigue una estructura modular basada en características:
 
 ```
 src/
-├── database/           # Configuración y esquemas de la base de datos (SQLite)
-├── handlers/           # Manejadores de eventos y comandos
+├── database/           # Base de datos SQLite (schema, migraciones, queries)
+├── config/             # Validación de variables de entorno (envalid)
+├── handlers/           # Manejadores de eventos y carga de comandos
+├── events/             # Eventos globales de Discord (interactionCreate, guildMemberAdd...)
 ├── modules/            # Módulos principales del bot
-│   └── tickets/        # Módulo de Sistema de Tickets
-│       ├── commands/   # Comandos Slash (config, ticket, setup-tickets)
-│       ├── events/     # Eventos específicos del módulo (interacciones)
-│       └── services/   # Lógica de negocio (crear, cerrar, reclamar tickets)
-├── utils/              # Utilidades compartidas (logger, respuestas, embeds)
-├── index.js            # Punto de entrada de la aplicación
-└── client.js           # Configuración del cliente de Discord
-tests/                  # Pruebas unitarias e integración
+│   ├── tickets/        # Sistema de tickets
+│   │   ├── commands/   # /tickets (comando unificado)
+│   │   ├── events/     # Interacciones de botones/modals del sistema
+│   │   └── services/   # Lógica de negocio (abrir, cerrar, reclamar tickets)
+│   ├── admin/          # Moderación, bienvenida, staff stats
+│   │   ├── commands/   # /moderation, /staff
+│   │   └── subcommands/# Lógica por subcomando (actions, history, bienvenida...)
+│   ├── audit/          # Sistema de auditoría y logs automáticos
+│   │   ├── commands/   # /audit
+│   │   ├── events/     # Listeners de eventos de Discord (mensajes, roles, canales...)
+│   │   └── utils/      # auditDb (configuración por servidor)
+│   └── general/        # Comandos generales
+│       ├── commands/   # /botinfo, /help, /suggestions
+│       └── subcommands/# Lógica de sugerencias (send, action, setup)
+├── utils/              # Utilidades compartidas (logger, respuestas, embeds, audit, transcript)
+├── index.js            # Punto de entrada
+└── client.js           # Configuración del cliente Discord
+tests/                  # Pruebas unitarias
 ```
 
 ## 🧩 Estándares de Código

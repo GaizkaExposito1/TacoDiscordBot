@@ -14,6 +14,7 @@ function replacePlaceholders(text, data = {}) {
 
     const placeholders = {
         '{user}': data.user ?? 'Usuario',
+        '{username}': data.username ?? data.user ?? 'Usuario',
         '{user_tag}': data.userTag ?? 'Usuario#0000',
         '{user_id}': data.userId ?? '000000000000000000',
         '{ticket_id}': data.ticketId ?? '0000',
@@ -22,6 +23,7 @@ function replacePlaceholders(text, data = {}) {
         '{staff}': data.staff ?? 'Staff',
         '{closer}': data.closer ?? 'Staff',
         '{server}': data.server ?? 'Servidor',
+        '{member_count}': data.memberCount != null ? String(data.memberCount) : '0',
         '{date}': data.date ?? new Date().toLocaleDateString('es-ES'),
         '{time}': data.time ?? new Date().toLocaleTimeString('es-ES'),
     };

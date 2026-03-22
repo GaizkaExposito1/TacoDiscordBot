@@ -25,6 +25,7 @@ const {
     saveDatabaseSync,
     incrementDepartmentTicketCount,
     decrementDepartmentTicketCount,
+    incrementTicketCounter,
     updateTicketRating,
 } = require('../../../database/database');
 const { buildEmbed, simpleEmbed } = require('../../../utils/embeds');
@@ -72,10 +73,18 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-        // ─── Obtener Contador por Departamento ───
-        // Incrementamos el contador global (estadística) y el contador del departamento
-        const deptStats = incrementDepartmentTicketCount(departmentId, guild.id);
-        const ticketNumber = String(deptStats.ticket_count).padStart(5, '0');
+        // ─── Obtener Contador (global o por departamento) ───
+        const counterMode = config.ticket_counter_mode ?? 'category';
+        let ticketNumber;
+        let preAssignedNumber = null;
+        if (counterMode === 'global') {
+            const globalCount = incrementTicketCounter(guild.id);
+            preAssignedNumber = globalCount; // se pasa a createTicket para evitar doble incremento
+            ticketNumber = String(globalCount).padStart(5, '0');
+        } else {
+            const deptStats = incrementDepartmentTicketCount(departmentId, guild.id);
+            ticketNumber = String(deptStats.ticket_count).padStart(5, '0');
+        }
         
         // Limpiar nombre del departamento para usarlo en el canal (quitar espacios y caracteres raros)
         const safeDeptName = departmentName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
@@ -106,6 +115,14 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
             });
         }
 
+        // Permitir al rol silenciado hablar en su ticket aunque tenga SendMessages denegado globalmente
+        if (config.silenciado_role_id) {
+            permissionOverwrites.push({
+                id: config.silenciado_role_id,
+                allow: [PermissionFlagsBits.SendMessages],
+            });
+        }
+
         let channel;
         try {
             channel = await guild.channels.create({
@@ -116,7 +133,9 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
                 permissionOverwrites,
             });
         } catch (channelError) {
-            decrementDepartmentTicketCount(departmentId, guild.id);
+            if (counterMode !== 'global') {
+                decrementDepartmentTicketCount(departmentId, guild.id);
+            }
             throw channelError;
         }
 
@@ -125,7 +144,7 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
         // No afecta la lógica interna, solo el nombre del canal.
         let ticket;
         try {
-            ticket = createTicket(guild.id, channel.id, user.id, departmentId, mainSubject);
+            ticket = createTicket(guild.id, channel.id, user.id, departmentId, mainSubject, preAssignedNumber);
         } catch (dbError) {
             // Rollback si falla la DB: borrar canal y decrementar
             decrementDepartmentTicketCount(departmentId, guild.id);

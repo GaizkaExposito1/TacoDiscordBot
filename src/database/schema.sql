@@ -11,15 +11,41 @@ CREATE TABLE IF NOT EXISTS guild_config (
     transcript_channel_id TEXT,
     ticket_category_id TEXT,
     ticket_counter  INTEGER DEFAULT 0,
+    ticket_counter_mode TEXT DEFAULT 'category',
+    silenciado_role_id TEXT,
     max_tickets_per_user INTEGER DEFAULT 1,
     panel_channel_id TEXT,
     panel_message_id TEXT,
     -- Configuración de moderación (roles mínimos)
-    mod_min_role_id TEXT, -- Para warn, timeout, kick
+    mod_min_role_id TEXT,   -- Para warn, timeout, kick
     admin_min_role_id TEXT, -- Para ban, remove-sanction
+    op_min_role_id TEXT,    -- Para bienvenida, anuncios, config del bot
     suggestions_channel_id TEXT, -- Para el sistema de sugerencias
+    welcome_channel_id TEXT, -- Canal de bienvenida/despedida
+    welcome_message TEXT, -- Mensaje personalizado de bienvenida
+    goodbye_message TEXT, -- Mensaje personalizado de despedida
+    welcome_enabled INTEGER DEFAULT 1,
+    goodbye_enabled INTEGER DEFAULT 1,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+-- Roles automáticos al entrar al servidor
+CREATE TABLE IF NOT EXISTS welcome_roles (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id    TEXT NOT NULL,
+    role_id     TEXT NOT NULL,
+    UNIQUE(guild_id, role_id)
+);
+
+-- Timeouts permanentes (se reaplican automáticamente)
+CREATE TABLE IF NOT EXISTS perm_timeouts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id     TEXT NOT NULL,
+    user_id      TEXT NOT NULL,
+    reason       TEXT,
+    last_applied TEXT DEFAULT (datetime('now')),
+    UNIQUE(guild_id, user_id)
 );
 
 -- Mensajes y textos personalizables

@@ -84,7 +84,7 @@ async function logAudit(client, guildId, action, executorId, targetId, details, 
         const sentMessage = await channel.send({ embeds: [embed] });
         return sentMessage;
     } catch (err) {
-        logger.error('[Audit] Error al enviar log al canal:', err);
+        logger.warn(`[Audit] No se pudo enviar log al canal ${targetChannelId}: ${err.message}`);
         return null;
     }
 }

@@ -2,6 +2,8 @@ const { Events, AuditLogEvent, EmbedBuilder } = require('discord.js');
 const { getAuditConfig } = require('../utils/auditDb');
 const { sendAuditLog } = require('../utils/auditLogger');
 const { createLogEmbed } = require('../utils/logEmbed');
+const { getGuildConfig, removePermTimeout } = require('../../../database/database');
+const logger = require('../../../utils/logger');
 
 module.exports = {
     name: Events.GuildMemberUpdate,
@@ -9,7 +11,28 @@ module.exports = {
         if (!oldMember.guild || !newMember.guild) return;
         const guild = newMember.guild;
 
+        // ─── Detectar fin de timeout → quitar rol Silenciado ───────────────────
+        const wasTimedOut = oldMember.communicationDisabledUntil && new Date(oldMember.communicationDisabledUntil) > new Date();
+        const isTimedOut = newMember.isCommunicationDisabled();
+        if (wasTimedOut && !isTimedOut) {
+            try {
+                const botConfig = getGuildConfig(guild.id);
+                if (botConfig?.silenciado_role_id) {
+                    const role = guild.roles.cache.get(botConfig.silenciado_role_id);
+                    if (role && newMember.roles.cache.has(role.id)) {
+                        await newMember.roles.remove(role, 'Timeout expirado').catch(() => {});
+                        // Si el usuario tenía timeout permanente registrado, limpiarlo también
+                        removePermTimeout(guild.id, newMember.id);
+                    }
+                }
+            } catch (err) {
+                logger.warn(`[GuildMemberUpdate] Error al quitar rol silenciado: ${err.message}`);
+            }
+        }
+        // ───────────────────────────────────────────────────────────────────────
+
         const config = getAuditConfig(guild.id);
+        if (!config) return;
         if (!config) return;
 
         // 1. Roles

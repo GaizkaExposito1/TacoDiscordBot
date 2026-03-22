@@ -1,9 +1,13 @@
 const { EmbedBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const logger = require('../../../../utils/logger.js');
 const { COLORS } = require('../../../../utils/constants');
+const { getGuildConfig } = require('../../../../database/database');
+const { requireLevel } = require('../../../../utils/permCheck');
 
 module.exports = {
     async execute(interaction) {
+        const config = getGuildConfig(interaction.guild.id);
+        if (!await requireLevel(interaction, config, 'op')) return;
         try {
             const tipo = interaction.options.getString('tipo');
             const mencion = interaction.options.getString('mencion'); 

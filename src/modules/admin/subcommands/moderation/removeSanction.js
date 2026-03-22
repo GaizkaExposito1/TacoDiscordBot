@@ -1,7 +1,22 @@
-const { PermissionFlagsBits } = require('discord.js');
-const { getDatabase, getGuildConfig } = require('../../../../database/database');
+const { getDatabase, getGuildConfig, removePermTimeout } = require('../../../../database/database');
+const { requireLevel } = require('../../../../utils/permCheck');
 const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
+
+/** Quita el timeout de Discord y el rol silenciado si está configurado */
+async function revokeTimeoutSilence(guild, userId) {
+    const config = getGuildConfig(guild.id);
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+    // Quitar timeout activo en Discord
+    if (member.isCommunicationDisabled()) {
+        await member.timeout(null, 'Sanción timeout revocada').catch(() => {});
+    }
+    // Quitar rol silenciado
+    if (config.silenciado_role_id) {
+        await member.roles.remove(config.silenciado_role_id, 'Sanción timeout revocada').catch(() => {});
+    }
+}
 
 module.exports = {
     async execute(interaction) {
@@ -12,26 +27,7 @@ module.exports = {
 
         // --- VERIFICACIÓN DE ROLES ---
         const config = getGuildConfig(guild.id);
-        const adminRoleId = config.admin_min_role_id;
-
-        if (adminRoleId) {
-            const hasRole = interaction.member.roles.cache.has(adminRoleId);
-            const isDiscordAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-            
-            if (!hasRole && !isDiscordAdmin) {
-                return interaction.reply({ 
-                    content: `❌ No tienes el rol de Administración configurado para retirar sanciones.`, 
-                    ephemeral: true 
-                });
-            }
-        } else {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ 
-                    content: '❌ No se ha configurado el rol de Administración. Un administrador de Discord debe usar `/moderation setup-roles` primero.', 
-                    ephemeral: true 
-                });
-            }
-        }
+        if (!await requireLevel(interaction, config, 'admin')) return;
         // --- FIN VERIFICACIÓN ---
 
         try {
@@ -49,6 +45,14 @@ module.exports = {
 
                 db.prepare("UPDATE sanctions SET status = 'revoked' WHERE id = ?").run(sanctionId);
 
+                // Si era un timeout, revocar en Discord y quitar rol silenciado
+                if (sanction.type === 'timeout') {
+                    if (sanction.duration === 'permanente') {
+                        removePermTimeout(guild.id, sanction.user_id);
+                    }
+                    await revokeTimeoutSilence(guild, sanction.user_id);
+                }
+
                 return interaction.reply({ 
                     embeds: [simpleEmbed('Sanción Revocada', `✅ Se ha marcado la sanción **#${sanctionId}** (${sanction.type}) de <@${sanction.user_id}> como **revocada**.`, '#00ff00')] 
                 });
@@ -61,6 +65,14 @@ module.exports = {
                 }
 
                 db.prepare("UPDATE sanctions SET status = 'revoked' WHERE id = ?").run(lastSanction.id);
+
+                // Si era un timeout, revocar en Discord y quitar rol silenciado
+                if (lastSanction.type === 'timeout') {
+                    if (lastSanction.duration === 'permanente') {
+                        removePermTimeout(guild.id, targetUser.id);
+                    }
+                    await revokeTimeoutSilence(guild, targetUser.id);
+                }
 
                 return interaction.reply({ 
                     embeds: [simpleEmbed('Sanción Revocada', `✅ Se ha marcado la última sanción activa (**#${lastSanction.id}** - ${lastSanction.type}) de **${targetUser.tag}** como **revocada**.`, '#00ff00')] 
