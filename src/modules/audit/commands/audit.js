@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { setLogChannel, toggleAuditEvent, toggleAllAuditEvents, getAuditConfig } = require('../utils/auditDb');
 const lookup = require('../subcommands/lookup/userLookup');
+const { requireLevel } = require('../../../utils/permCheck');
+const { getGuildConfig } = require('../../../database/database');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -76,10 +78,8 @@ module.exports = {
             if (subcommand === 'lookup') {
                 return await lookup.execute(interaction);
             } else if (subcommand === 'channel') {
-                // Solo administradores para configurar el canal
-                if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                    return interaction.reply({ content: '❌ Solo administradores pueden cambiar la configuración de los logs.', flags: MessageFlags.Ephemeral });
-                }
+                const config = getGuildConfig(guildId);
+                if (!await requireLevel(interaction, config, 'op')) return;
                 const channel = interaction.options.getChannel('canal');
                 if (!channel.isTextBased()) {
                      return interaction.reply({ content: '❌ Debes seleccionar un canal de texto.', flags: MessageFlags.Ephemeral });
@@ -89,6 +89,8 @@ module.exports = {
                 return interaction.reply({ content: `✅ Canal de logs configurado en ${channel}`, flags: MessageFlags.Ephemeral });
             
             } else if (subcommand === 'toggle') {
+                const config = getGuildConfig(guildId);
+                if (!await requireLevel(interaction, config, 'op')) return;
                 const event = interaction.options.getString('evento');
                 const state = interaction.options.getString('estado');
                 const enabled = state === 'on';
@@ -97,6 +99,8 @@ module.exports = {
                 return interaction.reply({ content: `✅ **${event}** ahora está **${state.toUpperCase()}**`, flags: MessageFlags.Ephemeral });
 
             } else if (subcommand === 'toggle-all') {
+                const config = getGuildConfig(guildId);
+                if (!await requireLevel(interaction, config, 'op')) return;
                 const state = interaction.options.getString('estado');
                 const enabled = state === 'on';
 

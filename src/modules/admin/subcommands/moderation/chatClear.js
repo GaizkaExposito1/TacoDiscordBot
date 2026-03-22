@@ -1,20 +1,20 @@
 const { PermissionFlagsBits } = require('discord.js');
 const logger = require('../../../../utils/logger.js');
+const { requireLevel } = require('../../../../utils/permCheck');
+const { getGuildConfig } = require('../../../../database/database');
 
 module.exports = {
     async execute(interaction) {
         const filtro = interaction.options.getString('filtro');
         const channel = interaction.channel;
+        const config = getGuildConfig(interaction.guild.id);
 
-        // --- OPCION 1: NUKE (Sin argumentos) ---
+        // Verificar nivel mínimo: todos necesitan al menos Mod
+        if (!await requireLevel(interaction, config, 'mod')) return;
+
+        // --- OPCION 1: NUKE (Sin argumentos) — Solo Op ---
         if (!filtro) {
-            // Verificar permisos extra para Nuke (ManageChannels)
-            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-                return interaction.reply({ 
-                    content: '❌ Necesitas el permiso `ManageChannels` para reiniciar el canal completo.', 
-                    ephemeral: true 
-                });
-            }
+            if (!await requireLevel(interaction, config, 'op')) return;
             
             try {
                 // Clonamos el canal actual con todas sus propiedades

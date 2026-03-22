@@ -77,15 +77,17 @@ automáticamente. Con ese rol:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛡️ MODERACIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• /moderation warn           → Advertir a un usuario (queda en historial).
-• /moderation timeout        → Silenciar temporalmente (asigna rol Silenciado).
-• /moderation kick           → Expulsar a un usuario del servidor.
-• /moderation ban            → Banear (temporal o permanente).
-• /moderation unban          → Desbanear a un usuario por ID.
-• /moderation history        → Ver historial de sanciones de un usuario.
-• /moderation remove-sanction → Revocar sanción: elimina del historial,
-                                 revoca timeout activo y retira rol Silenciado.
-• /moderation chat-clear     → Borrar mensajes en masa de un canal.
+  [Mod]   • /moderation warn            → Advertir a un usuario (queda en historial).
+  [Mod]   • /moderation timeout         → Silenciar temporalmente (asigna rol Silenciado).
+  [Mod]   • /moderation kick            → Expulsar a un usuario del servidor.
+  [Admin] • /moderation ban             → Banear (temporal o permanente).
+  [Admin] • /moderation unban           → Desbanear a un usuario por ID.
+  [---]   • /moderation history         → Ver historial de sanciones de un usuario.
+  [Admin] • /moderation remove-sanction → Revocar sanción: elimina del historial,
+                                          revoca timeout activo y retira rol Silenciado.
+  [---]   • /moderation chat-clear      → Borrar mensajes en masa.
+                                          Con número o tiempo: [Mod+].
+                                          Nuke completo (sin args): [Op].
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💡 SUGERENCIAS
@@ -98,10 +100,8 @@ automáticamente. Con ese rol:
 El bot registra automáticamente: edición/borrado de mensajes,
 cambios de roles, entradas/salidas de miembros y más.
 
-• /audit lookup  → Ver logs de auditoría de un usuario.
-• /audit channel → Configurar el canal de logs de auditoría.
-• /audit toggle  → Activar/desactivar eventos específicos.
-• /audit status  → Ver estado actual de todos los eventos de auditoría.
+• /audit lookup → Ver logs de auditoría de un usuario.
+  (Los comandos de configuración de auditoría son exclusivos de Operators)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ℹ️ INFORMACIÓN
