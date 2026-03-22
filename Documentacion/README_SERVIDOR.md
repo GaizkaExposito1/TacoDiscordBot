@@ -1,4 +1,4 @@
-# 🌮 TacoManagment Bot — Guía del Servidor
+# 🌮 TacoManagment Bot — Guía del Servidor (v1.4.0)
 
 ---
 
@@ -36,7 +36,13 @@ Tu sugerencia llegará al canal de sugerencias donde el staff
 podrá aprobarla o denegarla con su razón.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔇 SILENCIADO
+� ENCUESTAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• /poll results <id_mensaje> → Consulta los resultados de una encuesta activa.
+• /poll list                 → Lista todas las encuestas activas del servidor.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+�🔇 SILENCIADO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Si recibes un timeout, se te asignará el rol de Silenciado
 automáticamente. Con ese rol:
@@ -88,6 +94,9 @@ automáticamente. Con ese rol:
   [---]   • /moderation chat-clear      → Borrar mensajes en masa.
                                           Con número o tiempo: [Mod+].
                                           Nuke completo (sin args): [Op].
+  [Mod]   • /moderation slowmode <#canal> <seg>
+                                        → Configura modo lento en un canal.
+                                          0 = desactivar. Máximo 21600s (6h).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💡 SUGERENCIAS
@@ -95,7 +104,17 @@ automáticamente. Con ese rol:
 • /suggestions action → Aprobar o denegar una sugerencia con razón.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 AUDITORÍA
+� ENCUESTAS (Admin+)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• /poll create <#canal> → Crea una encuesta nativa de Discord (modal con pregunta,
+                          opciones con emoji, descripción, duración y multivoto).
+• /poll end <id_mensaje> → Cierra la encuesta y publica los resultados en el canal.
+• /poll results <id>    → Consulta votos en tiempo real (ephemeral).
+• /poll list             → Lista encuestas activas (cualquier nivel puede verlo).
+• /poll clear            → ⚠️ Borrar TODO el historial de encuestas. [Solo Op]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+�🔍 AUDITORÍA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 El bot registra automáticamente: edición/borrado de mensajes,
 cambios de roles, entradas/salidas de miembros y más.
@@ -137,15 +156,31 @@ Acceso completo a toda la configuración del servidor.
 • /tickets config preguntas-edit   → Editar pregunta del formulario.
 • /tickets config preguntas-del    → Eliminar pregunta del formulario.
 • /tickets config preguntas-list   → Ver preguntas configuradas de un departamento.
+• /tickets config auto-close horas:<N> → Cierra tickets inactivos tras N horas. 0 = desactivado.
 • /tickets delete-history          → ⚠️ Borrar TODO el historial de tickets del servidor.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ MODERACIÓN — CONFIGURACIÓN
+� ENCUESTAS — GESTIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• /poll create <#canal>  → Crea una encuesta nativa de Discord.
+• /poll end <id_mensaje> → Cierra una encuesta y publica resultados.
+• /poll results <id>     → Consulta votos en tiempo real (ephemeral).
+• /poll list             → Lista encuestas activas.
+• /poll clear            → ⚠️ Borrar TODO el historial de encuestas del servidor.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+�🛡️ MODERACIÓN — CONFIGURACIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • /moderation setup-roles    → Configurar nivel mínimo de rol para cada acción
                                 (mod, admin, op).
 • /moderation roles-info     → Ver la configuración actual de roles por nivel.
 • /moderation silenciado-rol → Definir el rol que se asigna al aplicar un timeout.
+• /moderation warn-config umbral:<N> accion:<timeout|kick|ban|none> [duracion]
+                            → Acción automática al acumular N warns. [Solo Op]
+                              0 = desactivado. duracion solo aplica a timeout (ej: 1h, 30m).
+• /moderation slowmode <#canal> <segundos>
+                            → Configura modo lento en un canal. [Mod+]
+                              También disponible para uso directo en la sección de staff.
 • /moderation anuncio        → Enviar un anuncio oficial en un canal.
 • /moderation update-staff   → Actualizar el rol de un miembro del staff.
 
@@ -174,4 +209,11 @@ Acceso completo a toda la configuración del servidor.
 • /audit toggle     → Activar/desactivar eventos individuales.
 • /audit toggle-all → Activar/desactivar todos los eventos a la vez.
 • /audit status     → Ver estado de todos los eventos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SISTEMA INTERNO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Migraciones de BD versionadas — El bot aplica automáticamente los
+  cambios de base de datos al arrancar usando la tabla schema_version.
+  No es necesaria ninguna intervención manual al actualizar el bot.
 ```

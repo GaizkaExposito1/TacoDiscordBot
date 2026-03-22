@@ -5,6 +5,44 @@ const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
 
 /**
+ * Comprueba si el usuario ha alcanzado el umbral de warns y ejecuta la acción automática.
+ * @returns {Promise<string|null>} Mensaje con la acción tomada, o null si no aplica.
+ */
+async function checkWarnThreshold(guild, targetUser, targetMember, config) {
+    const threshold = config.warn_threshold ?? 0;
+    const action    = config.warn_action ?? 'none';
+    if (threshold === 0 || action === 'none') return null;
+
+    const db = getDatabase();
+    const { count } = db
+        .prepare("SELECT COUNT(*) as count FROM sanctions WHERE guild_id = ? AND user_id = ? AND type = 'warn' AND status = 'active'")
+        .get(guild.id, targetUser.id);
+
+    if (count < threshold) return null;
+
+    const duration = config.warn_action_duration || null;
+
+    try {
+        if (action === 'timeout') {
+            const durationMs = parseDuration(duration);
+            if (durationMs && durationMs !== 'PERM') {
+                await targetMember.timeout(durationMs, `Auto-acción: ${threshold} warns acumulados`);
+                return `⚡ Acción automática: **timeout ${duration}** aplicado (${count} warns activos).`;
+            }
+        } else if (action === 'kick') {
+            await targetMember.kick(`Auto-acción: ${threshold} warns acumulados`);
+            return `⚡ Acción automática: **kick** aplicado (${count} warns activos).`;
+        } else if (action === 'ban') {
+            await guild.members.ban(targetUser.id, { reason: `Auto-acción: ${threshold} warns acumulados` });
+            return `⚡ Acción automática: **ban** aplicado (${count} warns activos).`;
+        }
+    } catch (err) {
+        logger.error('[Actions] Error ejecutando acción automática de warn:', err);
+    }
+    return null;
+}
+
+/**
  * Registra una sanción en la base de datos.
  */
 function recordSanction(guildId, userId, moderatorId, type, reason, duration = null) {
@@ -117,9 +155,15 @@ module.exports = {
                 recordSanction(guild.id, targetUser.id, moderator.id, 'warn', reason);
                 const dmSent = await sendSanctionDM(targetUser, guild, 'warn', reason);
                 dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';
-                
+
+                const autoMsg = await checkWarnThreshold(guild, targetUser, targetMember, config);
+
                 return interaction.reply({ 
-                    embeds: [simpleEmbed('Warn Aplicado', `✅ **${targetUser.tag}** ha sido advertido.\n**Razón:** ${reason}${dmStatus}`, '#ffff00')] 
+                    embeds: [simpleEmbed(
+                        'Warn Aplicado',
+                        `✅ **${targetUser.tag}** ha sido advertido.\n**Razón:** ${reason}${dmStatus}${autoMsg ? `\n\n${autoMsg}` : ''}`,
+                        '#ffff00'
+                    )] 
                 });
 
             } else if (action === 'timeout') {

@@ -154,6 +154,7 @@ module.exports = {
             .addSubcommand(sub => sub.setName('dept-del').setDescription('Eliminar depto').addIntegerOption(o=>o.setName('id').setDescription('ID Depto').setRequired(true)))
             .addSubcommand(sub => sub.setName('contador').setDescription('Modo de numeración de tickets').addStringOption(o=>o.setName('modo').setDescription('Modo del contador').setRequired(true).addChoices({name:'Global (un único contador para todos)',value:'global'},{name:'Por categoría (contador por departamento)',value:'category'})))
             .addSubcommand(sub => sub.setName('max-tickets').setDescription('Máximo de tickets abiertos por usuario').addIntegerOption(o=>o.setName('limite').setDescription('Número máximo (1-10)').setRequired(true).setMinValue(1).setMaxValue(10)))
+            .addSubcommand(sub => sub.setName('auto-close').setDescription('Cerrar tickets inactivos automáticamente').addIntegerOption(o=>o.setName('horas').setDescription('Horas de inactividad para auto-cerrar (0 = desactivado).').setRequired(true).setMinValue(0).setMaxValue(720)))
             
             // Aplanando el grupo 'preguntas' de config.js
             .addSubcommand(sub => sub.setName('preguntas-add').setDescription('Añadir pregunta a form').addIntegerOption(o=>o.setName('departamento').setDescription('Depto').setRequired(true).setAutocomplete(true)))
@@ -500,6 +501,7 @@ module.exports = {
                     { name: 'Tickets Máx/Usuario', value: String(conf.max_tickets_per_user ?? 1), inline: true },
                     { name: 'Tickets Creados globalmente', value: String(conf.ticket_counter ?? 0), inline: true },
                     { name: 'Modo Contador', value: conf.ticket_counter_mode === 'global' ? '🌍 Global' : '📂 Por categoría', inline: true },
+                    { name: 'Auto-cierre por inactividad', value: conf.ticket_autoclose_hours > 0 ? `⏰ ${conf.ticket_autoclose_hours}h` : '❌ Desactivado', inline: true },
                     { name: 'Departamentos', value: deptList, inline: false },
                 );
 
@@ -553,6 +555,14 @@ module.exports = {
                 const limite = options.getInteger('limite');
                 updateGuildConfig(guild.id, 'max_tickets_per_user', limite);
                 return replySuccess(interaction, `Máximo de tickets por usuario actualizado a **${limite}**.`, true);
+            }
+            if (subcommand === 'auto-close') {
+                const horas = options.getInteger('horas');
+                updateGuildConfig(guild.id, 'ticket_autoclose_hours', horas);
+                const msg = horas === 0
+                    ? '✅ Auto-cierre por inactividad **desactivado**. Los tickets no se cerrarán automáticamente.'
+                    : `✅ Los tickets inactivos por más de **${horas} hora(s)** se cerrarán automáticamente.`;
+                return replySuccess(interaction, msg, true);
             }
             
             // PREGUNTAS (Flattened logic)

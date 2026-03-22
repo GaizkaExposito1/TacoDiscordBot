@@ -855,13 +855,65 @@ async function handleCloseTicketModal(interaction) {
     await processTicketClosure(interaction, reason);
 }
 
+/**
+ * Cierra un ticket automáticamente por inactividad (llamado desde el checker).
+ * No requiere interacción — trabaja directamente con el cliente y el canal.
+ */
+async function autoCloseTicket(client, ticket) {
+    try {
+        const guild = client.guilds.cache.get(ticket.guild_id);
+        if (!guild) return;
+
+        const channel = guild.channels.cache.get(ticket.channel_id);
+        if (!channel) {
+            // El canal ya no existe, solo cerramos en DB
+            const db = require('../../../database/database');
+            db.getDatabase().prepare("UPDATE tickets SET status = 'closed', closed_at = datetime('now'), closed_by = 'auto' WHERE channel_id = ?").run(ticket.channel_id);
+            return;
+        }
+
+        const config = require('../../../database/database').getGuildConfig(ticket.guild_id);
+        const ticketNumber = String(ticket.id).padStart(4, '0');
+
+        logger.info(`[AutoClose] Cerrando ticket #${ticketNumber} por inactividad en ${guild.name}`);
+
+        // Mensaje previo en el canal antes de cerrar
+        await channel.send({
+            embeds: [simpleEmbed(
+                '⏰ Cierre automático por inactividad',
+                `Este ticket (#${ticketNumber}) ha sido cerrado automáticamente por no tener actividad en las últimas **${config.ticket_autoclose_hours} horas**.`,
+                COLORS.WARNING
+            )]
+        }).catch(() => {});
+
+        // Construir un objeto fake de interaction mínimo para reutilizar processTicketClosure
+        const fakeInteraction = {
+            guild,
+            channel,
+            client,
+            user: client.user,
+            deferred: false,
+            replied: false,
+            isButton: () => false,
+            deferReply: async () => {},
+            editReply: async () => {},
+            reply: async () => {},
+        };
+
+        await processTicketClosure(fakeInteraction, 'Cierre automático por inactividad');
+    } catch (err) {
+        logger.error(`[AutoClose] Error al cerrar ticket ${ticket.channel_id}:`, err);
+    }
+}
+
 module.exports = {
     openTicket,
     handleClaimTicket,
     handleUnclaimTicket,
-    processTicketClosure, // Renamed from handleCloseTicket
-    handleCloseTicketButton, // New
-    handleCloseTicketModal, // New
+    processTicketClosure,
+    handleCloseTicketButton,
+    handleCloseTicketModal,
     handleRating,
     handleRatingFeedback,
+    autoCloseTicket,
 };

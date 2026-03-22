@@ -122,6 +122,32 @@ module.exports = {
                 });
             }
 
+            // ── Encuestas ──────────────────────────────────────────────────────
+            if (isop) {
+                fields.push({
+                    name: '📊 Encuestas',
+                    value: '`/poll create` - Crea una nueva encuesta con modal.\n' +
+                           '`/poll end` - Cierra una encuesta y publica resultados.\n' +
+                           '`/poll results` - Consulta resultados de una encuesta.\n' +
+                           '`/poll list` - Lista las encuestas activas del servidor.\n' +
+                           '`/poll clear` - Borra todo el historial de encuestas.'
+                });
+            } else if (isadmin) {
+                fields.push({
+                    name: '📊 Encuestas',
+                    value: '`/poll create` - Crea una nueva encuesta con modal.\n' +
+                           '`/poll end` - Cierra una encuesta y publica resultados.\n' +
+                           '`/poll results` - Consulta resultados de una encuesta.\n' +
+                           '`/poll list` - Lista las encuestas activas del servidor.'
+                });
+            } else {
+                fields.push({
+                    name: '📊 Encuestas',
+                    value: '`/poll results` - Consulta resultados de una encuesta.\n' +
+                           '`/poll list` - Lista las encuestas activas del servidor.'
+                });
+            }
+
             // ── Enlaces ────────────────────────────────────────────────────────
             fields.push({
                 name: '🌐 Enlaces Útiles',

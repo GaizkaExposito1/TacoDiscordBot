@@ -14,6 +14,7 @@ const removeSanction = require('../subcommands/moderation/removeSanction');
 const setupRoles = require('../subcommands/moderation/setupRoles');
 const bienvenidaConfig = require('../subcommands/moderation/bienvenidaConfig');
 const rolesInfo = require('../subcommands/moderation/rolesInfo');
+const slowmode = require('../subcommands/moderation/slowmode');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -323,8 +324,49 @@ module.exports = {
                 .addRoleOption(opt =>
                     opt.setName('rol')
                         .setDescription('El rol de Silenciado del servidor.')
+                        .setRequired(true))        )
+        // ── SLOWMODE ────────────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('slowmode')
+                .setDescription('Activa o desactiva el modo lento en un canal. [Mod+]')
+                .addChannelOption(opt =>
+                    opt.setName('canal')
+                        .setDescription('Canal donde aplicar el slow mode.')
+                        .addChannelTypes(ChannelType.GuildText)
                         .setRequired(true))
-        ),
+                .addIntegerOption(opt =>
+                    opt.setName('segundos')
+                        .setDescription('Segundos de espera entre mensajes (0 = desactivar).')
+                        .setRequired(true)
+                        .setMinValue(0)
+                        .setMaxValue(21600))
+        )
+        // ── WARN-CONFIG ───────────────────────────────────────────────────
+        .addSubcommand(sub =>
+            sub
+                .setName('warn-config')
+                .setDescription('Configura la acción automática al acumular warns. [Solo Op]')
+                .addIntegerOption(opt =>
+                    opt.setName('umbral')
+                        .setDescription('Número de warns activos para activar la acción (0 = desactivado).')
+                        .setRequired(true)
+                        .setMinValue(0)
+                        .setMaxValue(50))
+                .addStringOption(opt =>
+                    opt.setName('accion')
+                        .setDescription('Acción automática al alcanzar el umbral.')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Ninguna (solo mostrar aviso en el warn)', value: 'none' },
+                            { name: 'Timeout', value: 'timeout' },
+                            { name: 'Kick', value: 'kick' },
+                            { name: 'Ban', value: 'ban' },
+                        ))
+                .addStringOption(opt =>
+                    opt.setName('duracion')
+                        .setDescription('Duración del timeout/ban automático (ej: 1h, 7d). Solo timeout o ban.')
+                        .setRequired(false))        ),
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
@@ -350,6 +392,21 @@ module.exports = {
                 return await anuncio.execute(interaction);
             } else if (subcommand.startsWith('bienvenida-')) {
                 return await bienvenidaConfig.execute(interaction);
+            } else if (subcommand === 'slowmode') {
+                return await slowmode.execute(interaction);
+            } else if (subcommand === 'warn-config') {
+                const config = getGuildConfig(interaction.guild.id);
+                if (!await requireLevel(interaction, config, 'op')) return;
+                const umbral  = interaction.options.getInteger('umbral');
+                const accion  = interaction.options.getString('accion');
+                const duracion = interaction.options.getString('duracion'); // puede ser null
+                updateGuildConfig(interaction.guild.id, 'warn_threshold', umbral);
+                updateGuildConfig(interaction.guild.id, 'warn_action', accion);
+                updateGuildConfig(interaction.guild.id, 'warn_action_duration', duracion);
+                const msg = umbral === 0
+                    ? '✅ Warn automático **desactivado**. No se aplicarán acciones automáticas.'
+                    : `✅ Al acumular **${umbral} warns** activos: **${accion.toUpperCase()}**${duracion ? ` (${duracion})` : ''}.`;
+                return interaction.reply({ content: msg, ephemeral: true });
             } else if (subcommand === 'silenciado-rol') {
                 if (!await requireLevel(interaction, getGuildConfig(interaction.guild.id), 'op')) return;
                 const rol = interaction.options.getRole('rol');

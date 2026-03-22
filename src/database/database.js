@@ -10,6 +10,263 @@ const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 let db = null;
 const configCache = new Map(); // Cache en memoria para configuraciones
 
+// ── Migraciones versionadas ─────────────────────────────────────────────────
+//
+// Cada objeto define una versión de esquema y su función `up(db)`.
+// Solo se ejecutan las migraciones cuya versión supere la almacenada en
+// la tabla `schema_version`. Para DBs existentes que usaban el sistema
+// antiguo de ALTER TABLE, el bootstrap detecta automáticamente que ya
+// están al día y salta al número de versión máximo.
+//
+const MIGRATIONS = [
+    {
+        version: 1,
+        description: 'Columnas rating y rating_comment en tickets',
+        up(db) {
+            db.prepare('ALTER TABLE tickets ADD COLUMN rating INTEGER').run();
+            db.prepare('ALTER TABLE tickets ADD COLUMN rating_comment TEXT').run();
+        },
+    },
+    {
+        version: 2,
+        description: 'Columna close_audit_log_id en tickets',
+        up(db) {
+            db.prepare('ALTER TABLE tickets ADD COLUMN close_audit_log_id TEXT').run();
+        },
+    },
+    {
+        version: 3,
+        description: 'Columnas de sugerencias en guild_config',
+        up(db) {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_channel_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_accepted_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_denied_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN updates_channel_id TEXT').run();
+        },
+    },
+    {
+        version: 4,
+        description: 'Columnas de bienvenida/despedida en guild_config',
+        up(db) {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_channel_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_message TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_message TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_enabled INTEGER DEFAULT 1').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_enabled INTEGER DEFAULT 1').run();
+        },
+    },
+    {
+        version: 5,
+        description: 'Columnas de roles de permisos (mod, admin, op) en guild_config',
+        up(db) {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN mod_min_role_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN admin_min_role_id TEXT').run();
+            db.prepare('ALTER TABLE guild_config ADD COLUMN op_min_role_id TEXT').run();
+        },
+    },
+    {
+        version: 6,
+        description: 'Columna ticket_counter_mode en guild_config',
+        up(db) {
+            db.prepare("ALTER TABLE guild_config ADD COLUMN ticket_counter_mode TEXT DEFAULT 'category'").run();
+        },
+    },
+    {
+        version: 7,
+        description: 'Columna silenciado_role_id en guild_config',
+        up(db) {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN silenciado_role_id TEXT').run();
+        },
+    },
+    {
+        version: 8,
+        description: 'Columna max_tickets_per_user en guild_config',
+        up(db) {
+            db.prepare('ALTER TABLE guild_config ADD COLUMN max_tickets_per_user INTEGER DEFAULT 1').run();
+        },
+    },
+    {
+        version: 9,
+        description: 'Tabla welcome_roles',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS welcome_roles (
+                    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id TEXT NOT NULL,
+                    role_id  TEXT NOT NULL,
+                    UNIQUE(guild_id, role_id)
+                );
+            `);
+        },
+    },
+    {
+        version: 10,
+        description: 'Tablas suggestions, sanctions, temp_bans, perm_timeouts',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS suggestions (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id        TEXT NOT NULL,
+                    channel_id      TEXT NOT NULL,
+                    message_id      TEXT NOT NULL,
+                    user_id         TEXT NOT NULL,
+                    content         TEXT NOT NULL,
+                    status          TEXT DEFAULT 'pending',
+                    staff_id        TEXT,
+                    staff_reason    TEXT,
+                    created_at      TEXT DEFAULT (datetime('now')),
+                    updated_at      TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS sanctions (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id        TEXT NOT NULL,
+                    user_id         TEXT NOT NULL,
+                    moderator_id    TEXT NOT NULL,
+                    type            TEXT NOT NULL CHECK(type IN ('warn', 'timeout', 'kick', 'ban')),
+                    reason          TEXT DEFAULT 'Sin razón proporcionada',
+                    duration        TEXT,
+                    status          TEXT DEFAULT 'active',
+                    timestamp       TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS temp_bans (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id        TEXT NOT NULL,
+                    user_id         TEXT NOT NULL,
+                    unban_at        TEXT NOT NULL,
+                    created_at      TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS perm_timeouts (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id     TEXT NOT NULL,
+                    user_id      TEXT NOT NULL,
+                    reason       TEXT,
+                    last_applied TEXT DEFAULT (datetime('now')),
+                    UNIQUE(guild_id, user_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_sanctions_user ON sanctions(user_id, guild_id);
+                CREATE INDEX IF NOT EXISTS idx_sanctions_guild ON sanctions(guild_id);
+            `);
+        },
+    },
+    {
+        version: 11,
+        description: 'Tabla polls (encuestas nativas de Discord)',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS polls (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id    TEXT NOT NULL,
+                    channel_id  TEXT NOT NULL,
+                    message_id  TEXT NOT NULL,
+                    creator_id  TEXT NOT NULL,
+                    question    TEXT NOT NULL,
+                    expires_at  TEXT NOT NULL,
+                    closed      INTEGER DEFAULT 0,
+                    created_at  TEXT DEFAULT (datetime('now'))
+                );
+            `);
+        },
+    },
+    {
+        version: 12,
+        description: 'Columna staff_only en polls (visibilidad para staff)',
+        up(db) {
+            db.exec(`ALTER TABLE polls ADD COLUMN staff_only INTEGER NOT NULL DEFAULT 0`);
+        },
+    },
+    {
+        version: 13,
+        description: 'Warn acumulático (umbral + acción) y auto-cierre de tickets por inactividad',
+        up(db) {
+            // Warn auto-action en guild_config
+            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_threshold INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action TEXT DEFAULT 'none'`);
+            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action_duration TEXT`);
+            // Auto-cierre de tickets
+            db.exec(`ALTER TABLE guild_config ADD COLUMN ticket_autoclose_hours INTEGER DEFAULT 0`);
+            db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT (datetime('now'))`);
+        },
+    },
+];
+
+// Última versión que aplicaba el sistema antiguo de ALTER TABLE manual.
+// Las DBs existentes se marcan aquí para que solo corran las migraciones
+// añadidas DESPUÉS de introducir el sistema versionado.
+const LEGACY_VERSION = 10;
+
+/**
+ * Ejecuta las migraciones pendientes contra la base de datos.
+ *
+ * Bootstrap automático: si schema_version no existía y la DB ya tiene
+ * columnas históricas (columna `rating` en tickets), se inicializa en
+ * LEGACY_VERSION para que las migraciones posteriores (nuevas tablas como
+ * polls) sí se ejecuten correctamente.
+ */
+function runMigrations(db) {
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL DEFAULT 0)`);
+
+    let row = db.prepare('SELECT version FROM schema_version').get();
+
+    if (!row) {
+        // Primera aparición de schema_version — detectar si DB es nueva o existente
+        const ticketCols = db.pragma('table_info(tickets)').map(c => c.name);
+        const isExistingDb = ticketCols.includes('rating'); // columna de migración v1
+
+        if (isExistingDb) {
+            db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(LEGACY_VERSION);
+            logger.info(`[DB] Migraciones: DB existente detectada → inicializada en v${LEGACY_VERSION}`);
+            row = { version: LEGACY_VERSION };
+        } else {
+            db.prepare('INSERT INTO schema_version (version) VALUES (0)').run();
+            row = { version: 0 };
+        }
+    }
+
+    // Corrección de seguridad: si la versión almacenada es mayor que LEGACY_VERSION
+    // pero alguna tabla crítica no existe, revertir al punto anterior.
+    // Esto ocurre cuando el bootstrap anterior marcó max incorrectamente.
+    if (row.version > LEGACY_VERSION) {
+        const missingTables = MIGRATIONS
+            .filter(m => m.version > LEGACY_VERSION && m.version <= row.version)
+            .filter(m => {
+                // Detectar tablas creadas por esta migración comparando nombres en sqlite_master
+                const sql = m.up.toString();
+                const match = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)/i);
+                if (!match) return false;
+                const tableName = match[1];
+                return !db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
+            });
+
+        if (missingTables.length > 0) {
+            logger.warn(`[DB] Tablas faltantes detectadas (${missingTables.map(m => m.description).join(', ')}). Corrigiendo versión a v${LEGACY_VERSION}...`);
+            db.prepare('UPDATE schema_version SET version = ?').run(LEGACY_VERSION);
+            row = { version: LEGACY_VERSION };
+        }
+    }
+
+    const currentVersion = row.version;
+    const pending = MIGRATIONS.filter(m => m.version > currentVersion);
+
+    if (pending.length === 0) {
+        logger.info(`[DB] Migraciones: al día (v${currentVersion})`);
+        return;
+    }
+
+    logger.info(`[DB] Aplicando ${pending.length} migración(es) pendiente(s)...`);
+
+    for (const migration of pending) {
+        const apply = db.transaction(() => {
+            migration.up(db);
+            db.prepare('UPDATE schema_version SET version = ?').run(migration.version);
+        });
+        apply();
+        logger.info(`[DB] ✓ v${migration.version}: ${migration.description}`);
+    }
+
+    const finalVersion = MIGRATIONS[MIGRATIONS.length - 1].version;
+    logger.info(`[DB] Migraciones completadas → v${finalVersion}`);
+}
+
 /**
  * Inicializa la base de datos (se llama una vez al arrancar).
  */
@@ -36,182 +293,7 @@ function initDatabase() {
             db.exec(schema);
         }
 
-        // Migración manual para columnas nuevas (rating)
-        const columns = db.pragma('table_info(tickets)');
-        if (!columns.some(c => c.name === 'rating')) {
-            logger.info('[DB] Agregando columnas de rating a tabla tickets...');
-            try {
-                db.prepare('ALTER TABLE tickets ADD COLUMN rating INTEGER').run();
-                db.prepare('ALTER TABLE tickets ADD COLUMN rating_comment TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columnas de rating:', e);
-            }
-        }
-
-        if (!columns.some(c => c.name === 'close_audit_log_id')) {
-            logger.info('[DB] Agregando columna close_audit_log_id a tabla tickets...');
-            try {
-                db.prepare('ALTER TABLE tickets ADD COLUMN close_audit_log_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna close_audit_log_id:', e);
-            }
-        }
-
-        const configColumns = db.pragma('table_info(guild_config)');
-        if (!configColumns.some(c => c.name === 'suggestions_channel_id')) {
-            logger.info('[DB] Agregando columna suggestions_channel_id a tabla guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_channel_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna suggestions_channel_id:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'suggestions_accepted_id')) {
-            logger.info('[DB] Agregando columna suggestions_accepted_id a tabla guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_accepted_id TEXT').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN suggestions_denied_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columnas de log de sugerencias:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'updates_channel_id')) {
-            logger.info('[DB] Agregando columna updates_channel_id a tabla guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN updates_channel_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna updates_channel_id:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'welcome_channel_id')) {
-            logger.info('[DB] Agregando columnas de bienvenida/despedida a guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_channel_id TEXT').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_message TEXT').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_message TEXT').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN welcome_enabled INTEGER DEFAULT 1').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN goodbye_enabled INTEGER DEFAULT 1').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columnas de bienvenida:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'mod_min_role_id')) {
-            logger.info('[DB] Agregando columnas mod_min_role_id y admin_min_role_id a guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN mod_min_role_id TEXT').run();
-                db.prepare('ALTER TABLE guild_config ADD COLUMN admin_min_role_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columnas de roles de moderación:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'op_min_role_id')) {
-            logger.info('[DB] Agregando columna op_min_role_id a guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN op_min_role_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna op_min_role_id:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'ticket_counter_mode')) {
-            logger.info('[DB] Agregando columna ticket_counter_mode a guild_config...');
-            try {
-                db.prepare("ALTER TABLE guild_config ADD COLUMN ticket_counter_mode TEXT DEFAULT 'category'").run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna ticket_counter_mode:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'silenciado_role_id')) {
-            logger.info('[DB] Agregando columna silenciado_role_id a guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN silenciado_role_id TEXT').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna silenciado_role_id:', e);
-            }
-        }
-
-        if (!configColumns.some(c => c.name === 'max_tickets_per_user')) {
-            logger.info('[DB] Agregando columna max_tickets_per_user a guild_config...');
-            try {
-                db.prepare('ALTER TABLE guild_config ADD COLUMN max_tickets_per_user INTEGER DEFAULT 1').run();
-            } catch (e) {
-                logger.error('[DB] Error al agregar columna max_tickets_per_user:', e);
-            }
-        }
-        try {
-            db.exec(`
-                CREATE TABLE IF NOT EXISTS welcome_roles (
-                    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id TEXT NOT NULL,
-                    role_id  TEXT NOT NULL,
-                    UNIQUE(guild_id, role_id)
-                );
-            `);
-        } catch (e) {
-            logger.error('[DB] Error al crear tabla welcome_roles:', e);
-        }
-
-        // Crear tabla de sanciones (Moderación)
-        try {
-            db.exec(`
-                CREATE TABLE IF NOT EXISTS suggestions (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id        TEXT NOT NULL,
-                    channel_id      TEXT NOT NULL,
-                    message_id      TEXT NOT NULL,
-                    user_id         TEXT NOT NULL,
-                    content         TEXT NOT NULL,
-                    status          TEXT DEFAULT 'pending',
-                    staff_id        TEXT,
-                    staff_reason    TEXT,
-                    created_at      TEXT DEFAULT (datetime('now')),
-                    updated_at      TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS sanctions (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id        TEXT NOT NULL,
-                    user_id         TEXT NOT NULL,
-                    moderator_id    TEXT NOT NULL,
-                    type            TEXT NOT NULL CHECK(type IN ('warn', 'timeout', 'kick', 'ban')),
-                    reason          TEXT DEFAULT 'Sin razón proporcionada',
-                    duration        TEXT,
-                    status          TEXT DEFAULT 'active', -- active, revoked, expired
-                    timestamp       TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS temp_bans (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id        TEXT NOT NULL,
-                    user_id         TEXT NOT NULL,
-                    unban_at        TEXT NOT NULL,
-                    created_at      TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS perm_timeouts (
-                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id     TEXT NOT NULL,
-                    user_id      TEXT NOT NULL,
-                    reason       TEXT,
-                    last_applied TEXT DEFAULT (datetime('now')),
-                    UNIQUE(guild_id, user_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_sanctions_user ON sanctions(user_id, guild_id);
-                CREATE INDEX IF NOT EXISTS idx_sanctions_guild ON sanctions(guild_id);
-            `);
-
-            // Migración manual para sanciones existentes
-            const sanctionCols = db.pragma('table_info(sanctions)');
-            if (!sanctionCols.some(c => c.name === 'status')) {
-                logger.info('[DB] Agregando columna status a tabla sanctions...');
-                db.prepare("ALTER TABLE sanctions ADD COLUMN status TEXT DEFAULT 'active'").run();
-            }
-        } catch (e) {
-            logger.error('[DB] Error al crear tabla de sanciones:', e);
-        }
+        runMigrations(db);
 
         logger.info('[DB] Base de datos inicializada correctamente (better-sqlite3).');
 
@@ -313,6 +395,9 @@ function updateGuildConfig(guildId, field, value) {
         'welcome_channel_id', 'welcome_message', 'goodbye_message',
         'welcome_enabled', 'goodbye_enabled',
         'ticket_counter_mode', 'silenciado_role_id',
+        // v13
+        'warn_threshold', 'warn_action', 'warn_action_duration',
+        'ticket_autoclose_hours',
     ];
     if (!allowed.includes(field)) throw new Error(`Campo no permitido: ${field}`);
     
@@ -786,6 +871,70 @@ function clearWelcomeRoles(guildId) {
     run('DELETE FROM welcome_roles WHERE guild_id = ?', [guildId]);
 }
 
+// ============================================================
+// POLLS
+// ============================================================
+
+function createPoll(guildId, channelId, messageId, creatorId, question, expiresAt, staffOnly = 0) {
+    const result = run(
+        `INSERT INTO polls (guild_id, channel_id, message_id, creator_id, question, expires_at, staff_only)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [guildId, channelId, messageId, creatorId, question, expiresAt, staffOnly ? 1 : 0]
+    );
+    return result.lastInsertRowid;
+}
+
+function closePoll(messageId, guildId) {
+    return run(
+        `UPDATE polls SET closed = 1 WHERE message_id = ? AND guild_id = ?`,
+        [messageId, guildId]
+    );
+}
+
+function getPollByMessage(messageId, guildId) {
+    return queryOne('SELECT * FROM polls WHERE message_id = ? AND guild_id = ?', [messageId, guildId]);
+}
+
+function getActivePolls(guildId, showAll = false) {
+    const query = showAll
+        ? `SELECT * FROM polls WHERE guild_id = ? AND closed = 0 ORDER BY created_at DESC`
+        : `SELECT * FROM polls WHERE guild_id = ? AND closed = 0 AND staff_only = 0 ORDER BY created_at DESC`;
+    return queryAll(query, [guildId]);
+}
+
+/**
+ * Elimina todo el historial de encuestas de un servidor.
+ * @param {string} guildId 
+ */
+function deletePollHistory(guildId) {
+    run('DELETE FROM polls WHERE guild_id = ?', [guildId]);
+}
+
+// ===================== TICKETS — ACTIVIDAD =====================
+
+/**
+ * Actualiza el timestamp de actividad de un ticket (para auto-cierre).
+ * @param {string} channelId
+ */
+function updateTicketLastActivity(channelId) {
+    run("UPDATE tickets SET last_activity_at = datetime('now') WHERE channel_id = ? AND status != 'closed'", [channelId]);
+}
+
+/**
+ * Devuelve todos los tickets abiertos que superan el umbral de inactividad de su servidor.
+ * Usa COALESCE(last_activity_at, created_at) como fallback para tickets sin actividad registrada.
+ */
+function getTicketsForAutoClose() {
+    return queryAll(`
+        SELECT t.*
+        FROM tickets t
+        JOIN guild_config gc ON t.guild_id = gc.guild_id
+        WHERE t.status != 'closed'
+          AND gc.ticket_autoclose_hours > 0
+          AND datetime(COALESCE(t.last_activity_at, t.created_at), '+' || gc.ticket_autoclose_hours || ' hours') <= datetime('now')
+    `, []);
+}
+
 module.exports = {
     backupDatabase,
     deleteTicketHistory,
@@ -843,4 +992,13 @@ module.exports = {
     getPermTimeouts,
     updatePermTimeoutLastApplied,
     removePermTimeout,
+    // Polls
+    createPoll,
+    closePoll,
+    getPollByMessage,
+    getActivePolls,
+    deletePollHistory,
+    // Tickets — actividad y auto-cierre
+    updateTicketLastActivity,
+    getTicketsForAutoClose,
 };
