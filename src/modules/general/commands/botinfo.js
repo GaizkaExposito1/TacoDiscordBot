@@ -29,6 +29,13 @@ module.exports = {
             const level = interaction.member ? getMemberLevel(interaction.member, config) : 'user';
             const isStaff = ['mod', 'admin', 'op'].includes(level);
 
+            // Contar miembros reales (sin bots) via API
+            let humanCount = 'N/A';
+            if (interaction.guild) {
+                const allMembers = await interaction.guild.members.fetch();
+                humanCount = allMembers.filter(m => !m.user.bot).size;
+            }
+
             const embed = new EmbedBuilder()
                 .setColor(0x0099FF)
                 .setTitle(`🌮 Información de ${interaction.client.user.username}`)
@@ -41,7 +48,7 @@ module.exports = {
                 .addFields(
                     { name: '🏷️ Versión', value: `v${version}`, inline: true },
                     { name: '⏱️ Tiempo Activo', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
-                    { name: '👥 Miembros', value: `${interaction.guild?.memberCount || 'N/A'}`, inline: true },
+                    { name: '👥 Miembros', value: `${humanCount}`, inline: true },
                 )
                 .setThumbnail(interaction.client.user.displayAvatarURL())
                 .setFooter({ text: 'Tacoland Network', iconURL: interaction.client.user.displayAvatarURL() })
