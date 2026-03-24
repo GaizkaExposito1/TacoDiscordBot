@@ -11,8 +11,8 @@ module.exports = {
         if (oldMessage.author?.bot) return; // Ignorar bots
         
         // Asegurarnos de que el contenido no sea null (mensajes solo con attachments/embeds)
-        const oldContent = oldMessage.content || '';
-        const newContent = newMessage.content || '';
+        const oldContent = oldMessage.content ?? '';
+        const newContent = newMessage.content ?? '';
 
         if (oldContent === newContent) return; 
 

@@ -2,7 +2,7 @@
 
 ---
 
-# 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos y Auto-cierre de tickets
+# 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos, Auto-cierre de tickets y Panel Web
 
 ## � Para usuarios
 
@@ -46,13 +46,23 @@ Para cualquier duda, abre un ticket. 🌮
   configurado por los operators, se ejecutará automáticamente una acción
   (timeout, kick o ban). El result del warn incluirá un aviso de la acción tomada.
 
-⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+⚠️ EXPIRACIÓN DE WARNS
 • /moderation warn ahora acepta el parámetro opcional [expiracion].
   Ejemplos: 7d, 30d, 90d.
 • Si se especifica, el warn expirará automáticamente al cabo de ese tiempo,
   pasando de 'activo' a 'expirado' sin intervención del staff.
 • El historial (/moderation history) muestra cuándo expira cada warn.
 • Los warns expirados NO cuentan para el umbral de acción automática.
+
+🖥️ PANEL WEB (Admin+)
+• El servidor ahora tiene un panel de administración web.
+• Acceso en http://212.227.95.181 con tu cuenta de Discord.
+• Funciones disponibles:
+  - Ver y filtrar todos los tickets (abiertos y cerrados).
+  - Consultar el historial de sanciones por usuario.
+  - Revisar sugerencias y su estado.
+  - Ver estadísticas del servidor.
+  - Leer transcripts de tickets en HTML desde el navegador.
 ```
 
 ## ⚙️ Para operators
@@ -89,16 +99,28 @@ CONFIGURACIÓN NUEVA:
   (tabla schema_version). Las actualizaciones futuras del bot se
   aplicarán automáticamente al arrancar sin intervención manual.
 
-📋 PANEL DE CONFIGURACIÓN UNIFICADO (patch 24 mar 2026)
+📋 PANEL DE CONFIGURACIÓN UNIFICADO
   Nuevo /config → muestra en un solo embed toda la configuración del servidor.
   Incluye: roles, canales, tickets, bienvenida, auto-roles, warns y auditoría.
   Solo Operators tienen acceso.
 
-⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+⚠️ EXPIRACIÓN DE WARNS
   /moderation warn usuario:<@> [razon:] [expiracion:]
   → expiracion acepta: 1d, 7d, 30d, 90d, etc.
   → Vacío = warn permanente (comportamiento anterior).
   → El bot comprueba warns expirados cada 10 minutos.
+
+🖥️ PANEL WEB
+• Acceso completo en http://212.227.95.181
+• Configuración de canales y roles desde el panel (transcripts,
+  sugerencias, auditoría, mod mínimo, etc.).
+
+🔧 CORRECCIONES INTERNAS
+• /help ya no genera peticiones masivas al API de Discord para
+  obtener el número de miembros.
+• Corrección de crash al editar mensajes que eran embeds (sin texto).
+• Corrección de error al actualizar el log de cierre de un ticket
+  cuyo mensaje de auditoría había sido eliminado manualmente.
 ```
 
 ---

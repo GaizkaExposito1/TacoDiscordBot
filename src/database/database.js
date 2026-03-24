@@ -178,21 +178,38 @@ const MIGRATIONS = [
         version: 13,
         description: 'Warn acumulático (umbral + acción) y auto-cierre de tickets por inactividad',
         up(db) {
-            // Warn auto-action en guild_config
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_threshold INTEGER DEFAULT 0`);
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action TEXT DEFAULT 'none'`);
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action_duration TEXT`);
-            // Auto-cierre de tickets
-            db.exec(`ALTER TABLE guild_config ADD COLUMN ticket_autoclose_hours INTEGER DEFAULT 0`);
-            db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT (datetime('now'))`);
+            const gcCols = db.pragma('table_info(guild_config)').map(c => c.name);
+            if (!gcCols.includes('warn_threshold'))       db.exec(`ALTER TABLE guild_config ADD COLUMN warn_threshold INTEGER DEFAULT 0`);
+            if (!gcCols.includes('warn_action'))          db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action TEXT DEFAULT 'none'`);
+            if (!gcCols.includes('warn_action_duration')) db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action_duration TEXT`);
+            if (!gcCols.includes('ticket_autoclose_hours')) db.exec(`ALTER TABLE guild_config ADD COLUMN ticket_autoclose_hours INTEGER DEFAULT 0`);
+            const tkCols = db.pragma('table_info(tickets)').map(c => c.name);
+            // SQLite no permite DEFAULT (datetime('now')) en ALTER TABLE → DEFAULT NULL
+            if (!tkCols.includes('last_activity_at')) db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT NULL`);
         },
     },
     {
         version: 14,
         description: 'Expiración automática de warns (columna expires_at en sanctions)',
         up(db) {
-            db.exec(`ALTER TABLE sanctions ADD COLUMN expires_at TEXT`);
+            const cols = db.pragma('table_info(sanctions)').map(c => c.name);
+            if (!cols.includes('expires_at')) {
+                db.exec(`ALTER TABLE sanctions ADD COLUMN expires_at TEXT`);
+            }
             db.exec(`CREATE INDEX IF NOT EXISTS idx_sanctions_expires ON sanctions(expires_at) WHERE expires_at IS NOT NULL`);
+        },
+    },
+    {
+        version: 15,
+        description: 'Caché de nombres de usuario de Discord',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS user_cache (
+                    user_id    TEXT PRIMARY KEY,
+                    username   TEXT NOT NULL,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            `);
         },
     },
 ];
@@ -929,6 +946,23 @@ function updateTicketLastActivity(channelId) {
 }
 
 /**
+ * Guarda o actualiza el nombre en caché de un usuario de Discord.
+ * No‐op si los argumentos son falsy o si la tabla no existe aún.
+ */
+function cacheUser(userId, username) {
+    if (!userId || !username) return;
+    try {
+        getDatabase().prepare(`
+            INSERT INTO user_cache (user_id, username, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+                username   = excluded.username,
+                updated_at = excluded.updated_at
+        `).run(userId, username);
+    } catch (_) { /* no‐critical */ }
+}
+
+/**
  * Devuelve todos los tickets abiertos que superan el umbral de inactividad de su servidor.
  * Usa COALESCE(last_activity_at, created_at) como fallback para tickets sin actividad registrada.
  */
@@ -1009,4 +1043,6 @@ module.exports = {
     // Tickets — actividad y auto-cierre
     updateTicketLastActivity,
     getTicketsForAutoClose,
+    // User cache
+    cacheUser,
 };

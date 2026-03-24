@@ -1,5 +1,5 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getDatabase, getGuildConfig, addPermTimeout } = require('../../../../database/database');
+const { getDatabase, getGuildConfig, addPermTimeout, cacheUser } = require('../../../../database/database');
 const { requireLevel } = require('../../../../utils/permCheck');
 const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
@@ -131,6 +131,10 @@ module.exports = {
         const requiredLevel = ['ban'].includes(action) ? 'admin' : 'mod';
         if (!await requireLevel(interaction, config, requiredLevel)) return;
         // --- FIN DE VERIFICACIÓN DE ROLES ---
+
+        // Cachear nombres de usuario para el panel web
+        cacheUser(targetUser.id, targetUser.globalName ?? targetUser.username);
+        cacheUser(moderator.id, moderator.globalName ?? moderator.username);
 
         // Verificar si el bot tiene permisos
         if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {

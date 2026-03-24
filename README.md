@@ -2,6 +2,8 @@
 
 TacoManagment es un bot de Discord integral y modular, diseñado para la gestión completa de comunidades: soporte, moderación, auditoría, sugerencias y bienvenida.
 
+> **Panel Web disponible:** [TacoDiscordBotWeb](https://github.com/GaizkaExposito1/TacoDiscordBotWeb) — dashboard de administración con autenticación Discord OAuth2.
+
 ## ✨ Características Principales
 
 *   **🎫 Sistema de Tickets:**
@@ -9,6 +11,7 @@ TacoManagment es un bot de Discord integral y modular, diseñado para la gestió
     *   Formularios modales personalizables por departamento.
     *   Contador de tickets **global** o **por categoría** (configurable).
     *   Transcripciones HTML automáticas al cierre, enviadas también por DM al usuario.
+    *   Las transcripciones se guardan en disco y son accesibles desde el panel web.
     *   Sistema de valoraciones con estrellas y comentarios opcionales.
     *   Reclamación de ticket (`ticket_claim`) con restricción de visibilidad al claimer.
     *   Límites de tickets por usuario configurables (`/tickets config max-tickets`).
@@ -50,19 +53,27 @@ TacoManagment es un bot de Discord integral y modular, diseñado para la gestió
     *   Base de datos SQLite local con **sistema de migraciones automáticas versionado** (tabla `schema_version`).
     *   **Panel de configuración unificado** (`/config`) — resumen completo en un solo embed: roles, canales, tickets, bienvenida, warns y auditoría. Solo nivel Operador.
 
+*   **🖥️ Panel Web (dashboard):**
+    *   Interfaz React + TypeScript accesible desde el navegador.
+    *   Autenticación OAuth2 con Discord (sesión JWT en cookie segura).
+    *   Consulta de tickets, sanciones, sugerencias y estadísticas del servidor.
+    *   Configuración de canales y roles directamente desde el navegador.
+    *   Visualización de transcripts de tickets en HTML.
+    *   Repositorio: [TacoDiscordBotWeb](https://github.com/GaizkaExposito1/TacoDiscordBotWeb).
+
 ## 🚀 Inicio Rápido
 
 ### Requisitos
 
 *   Node.js v18 o superior.
-*   Bot de Discord con Privileged Intents activados.
+*   Bot de Discord con Privileged Intents activados (`GUILD_MEMBERS`, `MESSAGE_CONTENT`).
 
 ### Instalación
 
 1.  **Clonar y configurar**
     ```bash
-    git clone <repo_url>
-    cd TacoManagment/bot
+    git clone https://github.com/GaizkaExposito1/TacoDiscordBot.git
+    cd TacoDiscordBot/bot
     npm install
     cp .env.example .env
     ```
@@ -90,6 +101,7 @@ Toda la documentación se encuentra en la carpeta [`Documentacion/`](Documentaci
 *   **[DEVELOPER_GUIDE.md](Documentacion/DEVELOPER_GUIDE.md):** Estructura técnica, estándares de código y flujos de trabajo.
 *   **[GUIA_FORMULARIOS.md](Documentacion/GUIA_FORMULARIOS.md):** Personalización de preguntas por departamento.
 *   **[DEPLOY_GUIDE_LINUX.md](Documentacion/DEPLOY_GUIDE_LINUX.md):** Instrucciones para servidores Ubuntu/Debian.
+*   **[DASHBOARD_WEB_PLAN.md](Documentacion/DASHBOARD_WEB_PLAN.md):** Arquitectura e integración del panel web.
 
 ## 🛠️ Scripts Útiles
 

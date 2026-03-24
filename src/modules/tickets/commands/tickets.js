@@ -246,7 +246,7 @@ module.exports = {
              
              await interaction.deferReply();
              try {
-                const attachment = await generateTranscript(channel, {
+                const { attachment } = await generateTranscript(channel, {
                     limit: -1,
                     filename: `transcript-${channel.name}.html`
                 });

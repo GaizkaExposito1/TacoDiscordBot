@@ -148,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_guild        ON audit_logs(guild_id);
 CREATE INDEX IF NOT EXISTS idx_departments_guild  ON departments(guild_id);
 CREATE INDEX IF NOT EXISTS idx_sanctions_user     ON sanctions(user_id, guild_id);
 CREATE INDEX IF NOT EXISTS idx_sanctions_guild    ON sanctions(guild_id);
-CREATE INDEX IF NOT EXISTS idx_sanctions_expires  ON sanctions(expires_at) WHERE expires_at IS NOT NULL;
+-- idx_sanctions_expires se crea en la migración v14 para compatibilidad con DBs existentes
 
 
 -- ============================================================

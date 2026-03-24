@@ -14,9 +14,8 @@ module.exports = {
             const member = interaction.member;
             const config = getGuildConfig(guild.id);
 
-            // Contar miembros (sin bots)
-            await guild.members.fetch();
-            const memberCount = guild.members.cache.filter(m => !m.user.bot).size;
+            // Contar miembros aproximado (sin fetch masivo que causa rate limit)
+            const memberCount = guild.approximateMemberCount ?? guild.memberCount ?? '?';
 
             const level = getMemberLevel(member, config);
             const ismod   = ['mod', 'admin', 'op'].includes(level);
