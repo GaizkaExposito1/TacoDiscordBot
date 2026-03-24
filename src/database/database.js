@@ -187,6 +187,14 @@ const MIGRATIONS = [
             db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT (datetime('now'))`);
         },
     },
+    {
+        version: 14,
+        description: 'Expiración automática de warns (columna expires_at en sanctions)',
+        up(db) {
+            db.exec(`ALTER TABLE sanctions ADD COLUMN expires_at TEXT`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_sanctions_expires ON sanctions(expires_at) WHERE expires_at IS NOT NULL`);
+        },
+    },
 ];
 
 // Última versión que aplicaba el sistema antiguo de ALTER TABLE manual.

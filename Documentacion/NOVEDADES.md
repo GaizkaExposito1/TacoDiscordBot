@@ -4,7 +4,7 @@
 
 # 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos y Auto-cierre de tickets
 
-## 👤 Para usuarios
+## � Para usuarios
 
 ```
 📢 | NOVEDADES DEL BOT — v1.4.0
@@ -45,6 +45,14 @@ Para cualquier duda, abre un ticket. 🌮
 • Al aplicar /moderation warn, si el usuario acumula el número de warns
   configurado por los operators, se ejecutará automáticamente una acción
   (timeout, kick o ban). El result del warn incluirá un aviso de la acción tomada.
+
+⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+• /moderation warn ahora acepta el parámetro opcional [expiracion].
+  Ejemplos: 7d, 30d, 90d.
+• Si se especifica, el warn expirará automáticamente al cabo de ese tiempo,
+  pasando de 'activo' a 'expirado' sin intervención del staff.
+• El historial (/moderation history) muestra cuándo expira cada warn.
+• Los warns expirados NO cuentan para el umbral de acción automática.
 ```
 
 ## ⚙️ Para operators
@@ -80,6 +88,17 @@ CONFIGURACIÓN NUEVA:
   La base de datos ahora usa un sistema de migraciones versionado
   (tabla schema_version). Las actualizaciones futuras del bot se
   aplicarán automáticamente al arrancar sin intervención manual.
+
+📋 PANEL DE CONFIGURACIÓN UNIFICADO (patch 24 mar 2026)
+  Nuevo /config → muestra en un solo embed toda la configuración del servidor.
+  Incluye: roles, canales, tickets, bienvenida, auto-roles, warns y auditoría.
+  Solo Operators tienen acceso.
+
+⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+  /moderation warn usuario:<@> [razon:] [expiracion:]
+  → expiracion acepta: 1d, 7d, 30d, 90d, etc.
+  → Vacío = warn permanente (comportamiento anterior).
+  → El bot comprueba warns expirados cada 10 minutos.
 ```
 
 ---

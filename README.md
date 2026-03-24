@@ -21,6 +21,7 @@ TacoManagment es un bot de Discord integral y modular, diseñado para la gestió
     *   Limpieza de mensajes en masa (`chat-clear`).
     *   **Slow mode** por canal (`/moderation slowmode`) — 0 a 6h, activable por Mod+.
     *   **Warn acumulativo** — acción automática (timeout/kick/ban) al alcanzar el umbral configurable (`/moderation warn-config`).
+    *   **Expiración automática de warns** — parámetro `expiracion` opcional al aplicar un warn (ej: `7d`, `30d`). El checker corre cada 10 minutos y marca los warns expirados automáticamente.
     *   Permisos granulares por nivel: Mod / Admin / Operador.
 
 *   **📊 Encuestas:**
@@ -47,6 +48,7 @@ TacoManagment es un bot de Discord integral y modular, diseñado para la gestió
     *   Estado dinámico del bot (Dev/Test → "En Mantenimiento", Producción → "Watching").
     *   Backups automáticos de la base de datos (retención de 5 días).
     *   Base de datos SQLite local con **sistema de migraciones automáticas versionado** (tabla `schema_version`).
+    *   **Panel de configuración unificado** (`/config`) — resumen completo en un solo embed: roles, canales, tickets, bienvenida, warns y auditoría. Solo nivel Operador.
 
 ## 🚀 Inicio Rápido
 

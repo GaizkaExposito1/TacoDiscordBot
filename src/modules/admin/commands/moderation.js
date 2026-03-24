@@ -59,6 +59,10 @@ module.exports = {
                     option.setName('razon')
                         .setDescription('Razón del warn.')
                         .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('expiracion')
+                        .setDescription('Tiempo hasta que el warn expire automáticamente (ej: 7d, 30d). Vacío = permanente.')
+                        .setRequired(false))
         )
         // ------------------ SUBCOMANDO: TIMEOUT ------------------
         .addSubcommand(subcommand =>

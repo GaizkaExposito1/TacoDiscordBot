@@ -14,9 +14,10 @@ async function checkWarnThreshold(guild, targetUser, targetMember, config) {
     if (threshold === 0 || action === 'none') return null;
 
     const db = getDatabase();
+    const now = new Date().toISOString();
     const { count } = db
-        .prepare("SELECT COUNT(*) as count FROM sanctions WHERE guild_id = ? AND user_id = ? AND type = 'warn' AND status = 'active'")
-        .get(guild.id, targetUser.id);
+        .prepare("SELECT COUNT(*) as count FROM sanctions WHERE guild_id = ? AND user_id = ? AND type = 'warn' AND status = 'active' AND (expires_at IS NULL OR expires_at > ?)")
+        .get(guild.id, targetUser.id, now);
 
     if (count < threshold) return null;
 
@@ -45,14 +46,14 @@ async function checkWarnThreshold(guild, targetUser, targetMember, config) {
 /**
  * Registra una sanción en la base de datos.
  */
-function recordSanction(guildId, userId, moderatorId, type, reason, duration = null) {
+function recordSanction(guildId, userId, moderatorId, type, reason, duration = null, expiresAt = null) {
     const db = getDatabase();
     try {
         const stmt = db.prepare(`
-            INSERT INTO sanctions (guild_id, user_id, moderator_id, type, reason, duration)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO sanctions (guild_id, user_id, moderator_id, type, reason, duration, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
-        stmt.run(guildId, userId, moderatorId, type, reason, duration);
+        stmt.run(guildId, userId, moderatorId, type, reason, duration, expiresAt);
     } catch (error) {
         logger.error(`[Moderation] Error registrando sanción (${type}) para ${userId}:`, error);
     }
@@ -152,7 +153,19 @@ module.exports = {
         
         try {
             if (action === 'warn') {
-                recordSanction(guild.id, targetUser.id, moderator.id, 'warn', reason);
+                const expiracionStr = interaction.options.getString('expiracion');
+                let expiresAt = null;
+                let expiracionLabel = '';
+                if (expiracionStr) {
+                    const ms = parseDuration(expiracionStr);
+                    if (!ms || ms === 'PERM') {
+                        return interaction.reply({ content: '❌ Formato de expiración inválido. Usa: 1h, 1d, 7d, 30d.', ephemeral: true });
+                    }
+                    expiresAt = new Date(Date.now() + ms).toISOString();
+                    expiracionLabel = `\n**Expira en:** ${expiracionStr}`;
+                }
+
+                recordSanction(guild.id, targetUser.id, moderator.id, 'warn', reason, null, expiresAt);
                 const dmSent = await sendSanctionDM(targetUser, guild, 'warn', reason);
                 dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';
 
@@ -161,7 +174,7 @@ module.exports = {
                 return interaction.reply({ 
                     embeds: [simpleEmbed(
                         'Warn Aplicado',
-                        `✅ **${targetUser.tag}** ha sido advertido.\n**Razón:** ${reason}${dmStatus}${autoMsg ? `\n\n${autoMsg}` : ''}`,
+                        `✅ **${targetUser.tag}** ha sido advertido.\n**Razón:** ${reason}${expiracionLabel}${dmStatus}${autoMsg ? `\n\n${autoMsg}` : ''}`,
                         '#ffff00'
                     )] 
                 });

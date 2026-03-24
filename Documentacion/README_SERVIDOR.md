@@ -84,6 +84,8 @@ automáticamente. Con ese rol:
 🛡️ MODERACIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
   [Mod]   • /moderation warn            → Advertir a un usuario (queda en historial).
+                                          Opción [expiracion] (ej: 7d, 30d) para que el
+                                          warn expire automáticamente. Vacío = permanente.
   [Mod]   • /moderation timeout         → Silenciar temporalmente (asigna rol Silenciado).
   [Mod]   • /moderation kick            → Expulsar a un usuario del servidor.
   [Admin] • /moderation ban             → Banear (temporal o permanente).
@@ -178,6 +180,7 @@ Acceso completo a toda la configuración del servidor.
 • /moderation warn-config umbral:<N> accion:<timeout|kick|ban|none> [duracion]
                             → Acción automática al acumular N warns. [Solo Op]
                               0 = desactivado. duracion solo aplica a timeout (ej: 1h, 30m).
+                              Nota: los warns con [expiracion] expirada NO cuentan.
 • /moderation slowmode <#canal> <segundos>
                             → Configura modo lento en un canal. [Mod+]
                               También disponible para uso directo en la sección de staff.
@@ -211,9 +214,18 @@ Acceso completo a toda la configuración del servidor.
 • /audit status     → Ver estado de todos los eventos.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+� CONFIGURACIÓN UNIFICADA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• /config  → Panel completo de toda la configuración del servidor en
+             un único embed: roles, canales, tickets, bienvenida,
+             auto-roles, warns y auditoría. [Solo Op]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔧 SISTEMA INTERNO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Migraciones de BD versionadas — El bot aplica automáticamente los
   cambios de base de datos al arrancar usando la tabla schema_version.
   No es necesaria ninguna intervención manual al actualizar el bot.
+• Expiración de warns — El bot comprueba cada 10 minutos los warns
+  con fecha de expiración y los marca como 'expirado' automáticamente.
 ```

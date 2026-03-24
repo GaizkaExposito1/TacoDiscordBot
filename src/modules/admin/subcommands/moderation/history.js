@@ -11,7 +11,7 @@ module.exports = {
 
         try {
             const sanctions = db.prepare(`
-                SELECT id, type, reason, moderator_id, duration, status, timestamp 
+                SELECT id, type, reason, moderator_id, duration, status, timestamp, expires_at 
                 FROM sanctions 
                 WHERE guild_id = ? AND user_id = ?
                 ORDER BY timestamp DESC
@@ -26,9 +26,10 @@ module.exports = {
             `).all(guild.id, targetUser.id);
 
             const statsMap = { warn: 0, timeout: 0, kick: 0, ban: 0 };
-            stats.forEach(s => { 
+            const now = new Date();
+            stats.forEach(s => {
                 if (s.status === 'active') {
-                    statsMap[s.type] += s.count; 
+                    statsMap[s.type] += s.count;
                 }
             });
 
@@ -70,6 +71,13 @@ module.exports = {
                                 `**Razón:** \`${s.reason}\``;
                     
                     if (s.duration) details += `\n**Tiempo:** \`${s.duration}\``;
+                    if (s.expires_at) {
+                        const expiresTs = s.expires_at.endsWith('Z') ? s.expires_at : s.expires_at + 'Z';
+                        const expiresDate = new Date(expiresTs);
+                        const expiresUnix = Math.floor(expiresDate.getTime() / 1000);
+                        const expired = expiresDate <= now;
+                        details += `\n**Expira:** <t:${expiresUnix}:R>${expired ? ' *(ya expirado)*' : ''}`;
+                    }
                     details += `\n**Fecha:** ${timeStr}`;
 
                     embed.addFields({ 

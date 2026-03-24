@@ -1,4 +1,4 @@
-# 🌮 TacoLand Management Bot - Manual de Usuario (v1.3.0)
+# 🌮 TacoLand Management Bot - Manual de Usuario (v1.4.0)
 
 Este documento detalla todas las funcionalidades, comandos y sistemas automáticos del bot integral de TacoLand.
 
@@ -58,13 +58,13 @@ Gestión de feedback de la comunidad con seguimiento de estados y notificaciones
 ### `/moderation`
 
 #### Sanciones
-*   **`warn [usuario] [razon]`** — Aplica una advertencia y la guarda en el historial.
+*   **`warn [usuario] [razon] [expiracion]`** — Aplica una advertencia y la guarda en el historial. El parámetro `expiracion` es opcional (ej: `7d`, `30d`); si se indica, el warn expirará automáticamente al cabo del tiempo especificado.
 *   **`timeout [usuario] [duracion] [razon]`** — Silencia un usuario temporalmente. Soporta `perm` para timeout permanente (se reaaplica automáticamente).
 *   **`kick [usuario] [razon]`** — Expulsa del servidor.
-*   **`ban [usuario] [razon]`** — Banea al usuario (permanente o temporal).
+*   **`ban [usuario] [razon] [duracion]`** — Banea al usuario (permanente o temporal con desbaneo automático).
 *   **`unban [userid]`** — Desbanea a un usuario por ID.
 *   **`remove-sanction [id]`** — Elimina una sanción concreta del historial.
-*   **`history [usuario]`** — Muestra el historial de sanciones de un usuario.
+*   **`history [usuario]`** — Muestra el historial de sanciones de un usuario, incluida la fecha de expiración de warns.
 
 #### Utilidad
 *   **`chat-clear [cantidad]`** — Borra un número de mensajes del canal actual.
@@ -112,10 +112,13 @@ Gestión de feedback de la comunidad con seguimiento de estados y notificaciones
 ## 6. ℹ️ General
 
 ### `/botinfo`
-Muestra la versión (`v1.3.0`), el uptime, uso de memoria, miembros del servidor y estadísticas de tickets abiertos/totales.
+Muestra la versión (`v1.4.0`), el uptime, uso de memoria, miembros del servidor y estadísticas de tickets abiertos/totales.
 
 ### `/help`
 Menú visual adaptado al nivel del usuario (Usuario / Mod / Admin / Operador) con acceso rápido a todos los comandos disponibles.
+
+### `/config` *(Solo Operador)*
+Panel de configuración unificado. Muestra en un único embed toda la configuración activa del servidor: roles de moderación, canales, sistema de tickets, bienvenida y auto-roles, auto-acción de warns y auditoría.
 
 ---
 
@@ -125,3 +128,4 @@ Menú visual adaptado al nivel del usuario (Usuario / Mod / Admin / Operador) co
 *   **Timeout Permanente:** Los usuarios con timeout permanente son re-silenciados automáticamente cada vez que el timeout de Discord expira.
 *   **Roles Automáticos:** Los roles de bienvenida configurados se asignan automáticamente a cada nuevo miembro.
 *   **Panel en Vivo:** El panel de tickets se actualiza automáticamente al añadir o eliminar departamentos.
+*   **Expiración de Warns:** El bot comprueba cada 10 minutos los warns activos con fecha de expiración. Al expirar, el warn pasa de `activo` a `expirado` automáticamente y deja de contar para el umbral de acción automática.
