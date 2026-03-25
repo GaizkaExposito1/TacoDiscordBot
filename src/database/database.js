@@ -212,6 +212,16 @@ const MIGRATIONS = [
             `);
         },
     },
+    {
+        version: 16,
+        description: 'Expiración global de warns (warn_default_expiry en guild_config)',
+        up(db) {
+            const cols = db.pragma('table_info(guild_config)').map(c => c.name);
+            if (!cols.includes('warn_default_expiry')) {
+                db.exec(`ALTER TABLE guild_config ADD COLUMN warn_default_expiry TEXT DEFAULT NULL`);
+            }
+        },
+    },
 ];
 
 // Última versión que aplicaba el sistema antiguo de ALTER TABLE manual.
@@ -423,6 +433,8 @@ function updateGuildConfig(guildId, field, value) {
         // v13
         'warn_threshold', 'warn_action', 'warn_action_duration',
         'ticket_autoclose_hours',
+        // v16
+        'warn_default_expiry',
     ];
     if (!allowed.includes(field)) throw new Error(`Campo no permitido: ${field}`);
     

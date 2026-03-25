@@ -2,6 +2,37 @@
 
 ---
 
+# 🆕 v1.5.0 — Auditoría completa de sanciones, correcciones y mejoras del panel
+
+## ⚙️ Para operators
+
+```
+⚙️ | NOVEDADES — v1.5.0 (INTERNAL)
+
+🔍 AUDITORÍA DE SANCIONES
+  Todas las sanciones aplicadas via bot ahora quedan registradas
+  en el log de auditoría del panel web:
+  • /moderation warn    → acción: bot_warn
+  • /moderation timeout → acción: bot_timeout
+  • /moderation kick    → acción: bot_kick
+  • /moderation ban     → acción: bot_ban
+
+  Esto permite ver desde el panel quién aplicó cada sanción,
+  cuándo y con qué razón, junto con las acciones del panel web.
+
+📊 PANEL WEB — NOVEDADES v1.5.0
+  • Diseño completo de Tickets, Moderación, Config, Sugerencias
+    y Encuestas renovado.
+  • Ratings visibles solo para Operadores.
+  • Mensajes de bienvenida/despedida configurables desde
+    la sección "Mensajes Embed" del panel.
+  • Consola SQL: botón de datos de prueba para audit_logs.
+```
+
+> Esta versión no incluye cambios en comandos de Discord.
+
+---
+
 # 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos, Auto-cierre de tickets y Panel Web
 
 ## � Para usuarios

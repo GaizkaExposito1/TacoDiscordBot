@@ -28,6 +28,7 @@ const {
     incrementTicketCounter,
     updateTicketRating,
     cacheUser,
+    getTicketMessage,
 } = require('../../../database/database');
 const { buildEmbed, simpleEmbed } = require('../../../utils/embeds');
 const { replyError, replyWarning, replySuccess, replyInfo } = require('../../../utils/responses');
@@ -35,6 +36,33 @@ const { logAudit } = require('../../../utils/audit');
 const { generateTranscript } = require('../../../utils/transcript');
 const { COLORS, AUDIT_ACTIONS } = require('../../../utils/constants');
 const logger = require('../../../utils/logger');
+
+/**
+ * Reemplaza variables como {staff} o {user} en un texto.
+ */
+function applyVars(text, vars) {
+    if (!text) return text;
+    return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, v), text);
+}
+
+/**
+ * Devuelve un EmbedBuilder usando el embed configurado en la BD para `key`,
+ * con fallback a los parámetros por defecto.
+ * @param {string} guildId
+ * @param {string} key          - clave en ticket_messages (ej: 'ticket_claim')
+ * @param {Object} vars         - variables a sustituir, ej: { staff: '<@123>' }
+ * @param {string} defaultTitle
+ * @param {string} defaultDescription
+ * @param {string} defaultColor - color hex o COLORS.*
+ */
+function resolveDbEmbed(guildId, key, vars, defaultTitle, defaultDescription, defaultColor) {
+    const stored = getTicketMessage(guildId, key);
+    const title  = applyVars(stored?.title  || defaultTitle,       vars);
+    const desc   = applyVars(stored?.description || defaultDescription, vars);
+    const color  = stored?.color || defaultColor;
+    const footer = stored?.footer || 'Tacoland Network';
+    return simpleEmbed(title, desc, color).setFooter({ text: footer });
+}
 
 /**
  * Crea un ticket (canal privado) para el usuario.
@@ -346,7 +374,10 @@ async function handleClaimTicket(interaction) {
 
     // Mensaje en el chat (visible para todos)
     await channel.send({
-        embeds: [simpleEmbed(
+        embeds: [resolveDbEmbed(
+            guild.id,
+            'ticket_claim',
+            { staff: `<@${user.id}>` },
             '✋ Ticket Reclamado',
             `Este ticket ha sido reclamado por <@${user.id}>. En breve te atenderá.`,
             COLORS.WARNING
@@ -458,7 +489,10 @@ async function handleUnclaimTicket(interaction) {
 
     // Mensaje en el chat (visible para todos)
     await channel.send({
-        embeds: [simpleEmbed(
+        embeds: [resolveDbEmbed(
+            guild.id,
+            'ticket_unclaim',
+            { staff: `<@${user.id}>` },
             '🔓 Ticket Liberado',
             `<@${user.id}> ha liberado este ticket. Ahora otro miembro del staff puede reclamarlo.`,
             COLORS.INFO

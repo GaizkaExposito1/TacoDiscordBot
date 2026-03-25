@@ -1,5 +1,5 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getDatabase, getGuildConfig, addPermTimeout, cacheUser } = require('../../../../database/database');
+const { getDatabase, getGuildConfig, addPermTimeout, cacheUser, addAuditLog } = require('../../../../database/database');
 const { requireLevel } = require('../../../../utils/permCheck');
 const logger = require('../../../../utils/logger');
 const { simpleEmbed } = require('../../../../utils/embeds');
@@ -158,18 +158,27 @@ module.exports = {
         try {
             if (action === 'warn') {
                 const expiracionStr = interaction.options.getString('expiracion');
+                // Si no se especifica por warn, usar la expiración global del servidor
+                const effectiveExpiry = expiracionStr ?? (config.warn_default_expiry || null);
                 let expiresAt = null;
                 let expiracionLabel = '';
-                if (expiracionStr) {
-                    const ms = parseDuration(expiracionStr);
+                if (effectiveExpiry) {
+                    const ms = parseDuration(effectiveExpiry);
                     if (!ms || ms === 'PERM') {
-                        return interaction.reply({ content: '❌ Formato de expiración inválido. Usa: 1h, 1d, 7d, 30d.', ephemeral: true });
+                        if (expiracionStr) {
+                            return interaction.reply({ content: '❌ Formato de expiración inválido. Usa: 1h, 1d, 7d, 30d.', ephemeral: true });
+                        }
+                        // global expiry inválido: ignorarlo en silencio (no debería ocurrir si se configuró bien)
+                    } else {
+                        expiresAt = new Date(Date.now() + ms).toISOString();
+                        expiracionLabel = expiracionStr
+                            ? `\n**Expira en:** ${effectiveExpiry}`
+                            : `\n**Expira en:** ${effectiveExpiry} *(global)*`;
                     }
-                    expiresAt = new Date(Date.now() + ms).toISOString();
-                    expiracionLabel = `\n**Expira en:** ${expiracionStr}`;
                 }
 
                 recordSanction(guild.id, targetUser.id, moderator.id, 'warn', reason, null, expiresAt);
+                addAuditLog(guild.id, 'bot_warn', moderator.id, targetUser.id, JSON.stringify({ reason, expires_at: expiresAt }));
                 const dmSent = await sendSanctionDM(targetUser, guild, 'warn', reason);
                 dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';
 
@@ -196,6 +205,7 @@ module.exports = {
                     await targetMember.timeout(maxMs, reason);
                     addPermTimeout(guild.id, targetUser.id, reason);
                     recordSanction(guild.id, targetUser.id, moderator.id, 'timeout', reason, 'permanente');
+                    addAuditLog(guild.id, 'bot_timeout', moderator.id, targetUser.id, JSON.stringify({ reason, duration: 'permanente' }));
                     const dmSent = await sendSanctionDM(targetUser, guild, 'timeout', reason, 'Permanente');
                     dmStatus = dmSent ? ' (DM enviado)' : ' (No se pudo enviar DM)';
                     return interaction.reply({
@@ -208,7 +218,9 @@ module.exports = {
                 }
 
                 await targetMember.timeout(durationMs, reason);
-                recordSanction(guild.id, targetUser.id, moderator.id, 'timeout', reason, durationStr);
+                const timeoutExpiresAt = new Date(Date.now() + durationMs).toISOString();
+                recordSanction(guild.id, targetUser.id, moderator.id, 'timeout', reason, durationStr, timeoutExpiresAt);
+                addAuditLog(guild.id, 'bot_timeout', moderator.id, targetUser.id, JSON.stringify({ reason, duration: durationStr }));
                 // Asignar rol silenciado si está configurado
                 const silenciadoRoleId = config.silenciado_role_id;
                 if (silenciadoRoleId) await targetMember.roles.add(silenciadoRoleId, `Timeout ${durationStr} aplicado`).catch(() => {});
@@ -226,6 +238,7 @@ module.exports = {
                 
                 await targetMember.kick(reason);
                 recordSanction(guild.id, targetUser.id, moderator.id, 'kick', reason);
+                addAuditLog(guild.id, 'bot_kick', moderator.id, targetUser.id, JSON.stringify({ reason }));
 
                 return interaction.reply({ 
                     embeds: [simpleEmbed('Usuario Expulsado', `✅ **${targetUser.tag}** ha sido expulsado.\n**Razón:** ${reason}${dmStatus}`, '#ff5500')] 
@@ -240,6 +253,7 @@ module.exports = {
                 
                 await guild.members.ban(targetUser.id, { reason });
                 recordSanction(guild.id, targetUser.id, moderator.id, 'ban', reason, durationStr);
+                addAuditLog(guild.id, 'bot_ban', moderator.id, targetUser.id, JSON.stringify({ reason, duration: durationStr || null }));
 
                 if (durationMs) {
                     const db = getDatabase();

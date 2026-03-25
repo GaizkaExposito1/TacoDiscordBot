@@ -1,8 +1,177 @@
-# Propuestas de Mejora para TacoManagment
+# 📋 Mejoras — TacoManagment Bot
+
+Registro de features implementadas, análisis técnico de pendientes y propuestas nuevas.
+
+---
+
+## ✅ IMPLEMENTADO
+
+### 🏗️ Infraestructura y Técnico
+- **Migración de BD** (`sql.js` → `better-sqlite3`) — Acceso síncrono, sin callbacks, más rápido.
+- **Sistema de Logging** — Winston con niveles diferenciados por entorno.
+- **Validación de entorno** — `src/config/env.js` con `envalid`. Fallo explícito en arranque.
+- **Estado dinámico** (Presence) — "En Mantenimiento" en Dev/Test, "Watching Tickets" en Prod.
+- **Migraciones de BD versionado** — Array `MIGRATIONS[]` numerado con tabla `schema_version`. Solo aplica migraciones pendientes. Compatible con DBs existentes via `LEGACY_VERSION`.
+- **Backups automáticos** — Copia diaria de `database.sqlite` con retención de 5 días.
+
+### 🎫 Tickets
+- **Departamentos múltiples** — Select menu para elegir departamento antes de abrir el ticket. Formularios modales personalizados por departamento via `form_json`.
+- **Reclamación** — `ticket_claim`/`ticket_unclaim` en buttons y como slash command. Restringe visibilidad al claimer. Registra en auditoría.
+- **Transcripciones HTML** — Generadas al cierre, enviadas por DM al usuario y al canal de transcripts. Si el DM falla, el cierre continúa.
+- **Auto-cierre por inactividad** — `/tickets config auto-close <horas>`. Checker cada 15 min. 0 = desactivado.
+- **Rating de atención** — DM automático con botones 1–5 estrellas al cerrar. Modal de feedback opcional. Guardado en BD.
+- **Límite de tickets por usuario** — `/tickets config max-tickets <N>` (1–10). Verificado al abrir.
+- **Contador global o por categoría** — configurable por departamento.
+
+### 🛡️ Moderación
+- **Sanciones completas** — Warn, timeout (con soporte permanente), kick y ban con historial persistente en BD.
+- **Warn acumulativo** — `/moderation warn-config umbral accion [duracion]`. Acción automática al alcanzar el umbral.
+- **Expiración de warns** — Parámetro `expiracion` en `/moderation warn`. Checker cada 10 min. warns expirados no cuentan para umbral.
+- **Slow mode** — `/moderation slowmode <canal> <segundos>`. 0 = desactivar. Máx 6h. Mod+.
+- **Chat-clear** — Limpieza de mensajes en masa.
+- **Revocar sanción** — Eliminación individual de sanciones.
+- **Auditoría de sanciones** — `bot_warn`, `bot_timeout`, `bot_kick`, `bot_ban` registrados en `audit_logs` tras cada `recordSanction`.
+
+### 📊 Encuestas
+- **Sistema completo** — `/poll create`, `/poll end`, `/poll results`, `/poll list`, `/poll clear`.
+- **Encuestas nativas de Discord** — Con modal de configuración (pregunta, opciones, duración, multivoto).
+- **Visibilidad configurable** — Pública o solo staff.
+
+### 📢 Sugerencias
+- **Envío via modal** — Con votación automática (✅/❌).
+- **Flujo de estados** — Pendiente → Aceptada / Denegada / En Desarrollo / Implementada.
+- **Anuncio de novedades** — Al marcar como "Implementada" se publica en el canal de novedades.
+- **Cambio de estado** — Solo Admin+, tanto desde bot como desde panel web.
+
+### 🔍 Auditoría
+- **Eventos automáticos** — Borrado/edición de mensajes, entrada/salida de miembros, cambios de roles, creación/borrado de canales.
+- **Toggle por tipo** — `/audit toggle` para activar/desactivar eventos individuales.
+- **Expediente de usuario** — `/audit lookup`: sanciones + historial de tickets.
+- **Log completo** — Todas las acciones del bot y del panel registradas en `audit_logs`.
+
+### 👋 Bienvenida
+- **Mensajes personalizables** — Variables: `{user}`, `{server}`, `{count}`, `{mention}`.
+- **Activación independiente** — Welcome y goodbye activables por separado.
+- **Roles automáticos** — Asignación de roles al entrar al servidor.
+
+### ⚙️ Administración
+- **Panel de configuración unificado** — `/config` muestra en un embed el resumen completo: roles, canales, tickets, bienvenida, warns, auditoría. Solo Op.
+- **Despliegue de comandos** — `npm run deploy` registra/actualiza Slash Commands en la API de Discord.
+
+---
+
+## 🔄 PENDIENTE
+
+### 🎫 Tickets
+
+- [ ] **Categoría y rol de staff por departamento** — Actualmente todos los departamentos comparten una sola categoría de Discord y el mismo `staff_role_id`. Añadir `discord_category_id` y `staff_role_id` a la tabla `departments` para que cada departamento pueda apuntar a su propio espacio y rol. Dificultad: Baja-Media (infraestructura ya existe).
+- [ ] **Notas internas** — `/tickets note <texto>` dentro del canal del ticket. Nota embebida visible solo para staff, marcada como `[INTERNA]` en el transcript. Requiere tabla `ticket_notes`.
+- [ ] **Reapertura de ticket cerrado** — Botón `ticket_reopen` en el mensaje de cierre (logs), visible solo para Staff. Genera nuevo canal vinculado al ticket original via `parent_ticket_id`. Dificultad: Media.
+- [ ] **Asignación por departamento** — Al abrir ticket, asignar automáticamente al staff del departamento correspondiente si está disponible (según el rol configurado por departamento).
+- [ ] **Estadísticas de staff** — `/tickets staff-stats [período]`: tickets resueltos, tiempo medio y rating por moderador. Filtro semanal/mensual.
+
+### 🛡️ Moderación
+
+- [ ] **Lock/Unlock de canal** — `/moderation lock [#canal] [razón]` y `unlock`. Quita permisos de enviar mensajes al rol `@everyone`. Mod+.
+- [ ] **Anti-spam básico** — Detectar X mensajes en Y segundos del mismo usuario y silenciar automáticamente. Configurable por Op. Sin BD persistente (en memoria).
+- [ ] **Filtro de palabras** — Lista negra configurable por Op (`/moderation filtro add|remove|list`). El bot elimina el mensaje, avisa al usuario y registra en auditoría.
+- [ ] **Notas de usuario** — `/moderation note <usuario> <texto>`: anotaciones privadas de staff sobre un miembro, sin ser sanciones formales. Visibles en `/moderation history`.
+- [ ] **Desbaneo automático al expirar** — Los bans temporales (con duración) deberían ejecutar el unban en Discord via API al expirar, igual que el timeout. Actualmente solo se marca como expirado en BD.
+- [ ] **Historial por moderador** — `/moderation stats <mod>`: cuántos warn/timeout/kick/ban ha aplicado un moderador en total y por período.
+
+### 📊 Encuestas y Sugerencias
+
+- [ ] **Encuestas recurrentes** — Encuesta programada que se lanza automáticamente cada X días en un canal configurado.
+- [ ] **Estadísticas de sugerencias** — `/suggestions stats [período]`: resumen de aceptadas/denegadas/en desarrollo por rango de fechas.
+- [ ] **Búsqueda de sugerencia** — `/suggestions search <texto>`: buscar en el contenido de las sugerencias por palabras clave.
+
+### 👋 Bienvenida y Comunidad
+
+- [ ] **Reaction roles / Button roles** — Menú de autoasignación de roles configurado por Op. Panel con botones; al hacer clic el bot asigna/retira el rol.
+- [ ] **Mensaje de reglas con verificación** — Botón que asigna rol "verificado" al aceptar las reglas. Op configura canal y rol con `/setup reglas`.
+- [ ] **Recordatorios** — `/reminder <tiempo> <texto>`: el bot envía DM al usuario tras el tiempo indicado. Persistente en BD para sobrevivir a reinicios.
+- [ ] **Canales de estadísticas en tiempo real** — Voice channels que muestran: miembros totales, tickets abiertos, etc. Se actualizan cada 10 min.
+
+### 🎉 Utilidad / Entretenimiento
+
+- [ ] **Sorteos** — `/giveaway start <duración> <premio> [ganadores]` con botón de participación, selección aleatoria y reroll opcional. Requiere tabla `giveaways`.
+- [ ] **Contador de invitaciones** — Registrar qué usuario invitó a cada nuevo miembro. `/invites top` muestra el ranking. Requiere escuchar `inviteCreate`.
+- [ ] **Embed personalizado** — `/embed <#canal>` abre un modal donde Op redacta un embed (título, descripción, color) y el bot lo publica. Útil para anuncios.
+- [ ] **Votación rápida** — `/vote <pregunta>` que crea un mensaje con botones Sí/No/Neutral y muestra el resultado al finalizar un tiempo.
+
+### 📊 Estadísticas
+
+- [ ] **Resumen semanal automático** — El bot publica cada lunes en un canal configurable un embed con estadísticas de la semana: tickets, sanciones, sugerencias.
+- [ ] **Leaderboard de actividad** — Ranking de mensajes por usuario. Requiere escuchar `messageCreate` con throttling.
+- [ ] **Dashboard de moderación** — `/moderation stats [período]`: total de warns/bans/kicks/timeouts en el servidor, filtrable por fecha y mod.
+
+### 🔧 Técnico / Calidad
+
+- [ ] **Manejo global de errores** — `src/handlers/processHandler.js` capturando `unhandledRejection` y `uncaughtException` con log + notificación al canal de logs del servidor.
+- [ ] **Cooldowns por comando** — Sistema de cooldown por usuario y comando para evitar abuso de slash commands. Configurable por Op.
+- [ ] **Sistema de permisos por canal** — Restringir ciertos comandos a canales específicos (`/config canal-comando <comando> <#canal>`), además del control por nivel de rol.
+- [ ] **Hot-reload de comandos** — Comando `/reload <modulo>` solo para owner del bot que recarga un handler sin reiniciar el proceso. Útil en producción.
+- [ ] **Dockerfile** — Imagen oficial para facilitar el despliegue en cualquier servidor sin configurar Node manualmente.
+- [ ] **TypeScript (largo plazo)** — Migración progresiva empezando por los módulos más críticos (`database.js`, `ticketService.js`).
+
+---
+
+## 🔍 Análisis Técnico de Features Pendientes
+
+### ⚠️ Múltiples categorías de ticket — PARCIALMENTE implementado
+
+Lo que ya existe:
+- Sistema de **departamentos** completo con formularios JSON personalizados.
+- Select menu en el panel para elegir departamento.
+- Contador por categoría o global configurable.
+
+**Lo que falta:**
+- Todos los departamentos comparten `ticket_category_id` y `staff_role_id` globales.
+- Necesario: añadir `discord_category_id` y `staff_role_id` a la tabla `departments` (migración), con fallback al valor global si están a NULL.
+- En `openTicket()`, usar `department.discord_category_id ?? config.ticket_category_id`.
+
+**Dificultad: Baja-Media.** La infraestructura existe; solo hay que extender el modelo de datos.
+
+---
+
+### ❌ Notas internas de ticket — NO implementado
+
+**Cambios necesarios:**
+- Nueva tabla `ticket_notes` (id, ticket_id, staff_id, note, created_at).
+- Comando `/tickets note <texto>` que solo funciona dentro de un canal de ticket activo.
+- El embed de la nota usa color diferente + `🔒 Nota interna`.
+- Incluida en el transcript con marca `[NOTA INTERNA]`; opcionalmente filtrada si el DM va al usuario.
+
+**Dificultad: Media.**
+
+---
+
+### ❌ Reapertura de ticket cerrado — NO implementado
+
+**Cambios necesarios:**
+- Botón `ticket_reopen_<ticketId>` en el embed de cierre publicado en el canal de logs, visible solo para Staff (filtro `member.permissions`).
+- `handleReopenTicket()` en `ticketService.js`: crea nuevo canal, referencia `parent_ticket_id` en BD, notifica al usuario.
+- Nueva columna `parent_ticket_id` en `tickets`.
+- El botón debe usar ID persistente en BD para no quedar huérfano tras reinicio del bot.
+
+**Dificultad: Media.**
+
+---
+
+### ❌ Desbaneo automático al expirar — NO implementado
+
+Actualmente los bans temporales solo se marcan como `expired` en BD pero NO se ejecuta el unban en Discord.
+
+**Cambios necesarios:**
+- Checker periódico (similar al de warns) que consulta bans con `expires_at <= NOW()` y `status = active`.
+- Para cada uno: `guild.members.unban(userId)` via API de Discord + marcar como `expired` en BD + registrar `audit_log`.
+
+**Dificultad: Baja.** El patrón ya existe en el checker de warns.
+
 
 Este documento recopila las áreas de mejora identificadas en el análisis del proyecto, clasificadas por prioridad e impacto en la estabilidad y escalabilidad del bot.
 
-## � Completado
+## ✅ Completado
 
 ### ✅ 1. Migración de Base de Datos (`sql.js` → `better-sqlite3`)
 - Migración confirmada.
@@ -17,6 +186,9 @@ Este documento recopila las áreas de mejora identificadas en el análisis del p
 - Implementado en `src/events/ready.js`:
     - Cambia estado a "En Mantenimiento" en entornos Dev/Test.
     - Estado normal "Watching Tickets" en Producción.
+
+### ✅ 5. Auditoría completa de sanciones
+- `bot_warn`, `bot_timeout`, `bot_kick`, `bot_ban` registrados en `audit_logs` tras cada `recordSanction` en `actions.js`.
 
 ## 🟡 Pendiente (Se necesitan re-aplicar)
 

@@ -350,7 +350,7 @@ module.exports = {
         .addSubcommand(sub =>
             sub
                 .setName('warn-config')
-                .setDescription('Configura la acción automática al acumular warns. [Solo Op]')
+                .setDescription('Configura el sistema de warns: umbral, acción automática y expiración global. [Solo Op]')
                 .addIntegerOption(opt =>
                     opt.setName('umbral')
                         .setDescription('Número de warns activos para activar la acción (0 = desactivado).')
@@ -370,6 +370,10 @@ module.exports = {
                 .addStringOption(opt =>
                     opt.setName('duracion')
                         .setDescription('Duración del timeout/ban automático (ej: 1h, 7d). Solo timeout o ban.')
+                        .setRequired(false))
+                .addStringOption(opt =>
+                    opt.setName('expiracion_global')
+                        .setDescription('Expiración global para TODOS los warns nuevos (ej: 7d, 30d). Vacío = sin expiración.')
                         .setRequired(false))        ),
 
     async execute(interaction) {
@@ -401,16 +405,24 @@ module.exports = {
             } else if (subcommand === 'warn-config') {
                 const config = getGuildConfig(interaction.guild.id);
                 if (!await requireLevel(interaction, config, 'op')) return;
-                const umbral  = interaction.options.getInteger('umbral');
-                const accion  = interaction.options.getString('accion');
-                const duracion = interaction.options.getString('duracion'); // puede ser null
+                const umbral   = interaction.options.getInteger('umbral');
+                const accion   = interaction.options.getString('accion');
+                const duracion = interaction.options.getString('duracion');
+                const expGlobal = interaction.options.getString('expiracion_global');
                 updateGuildConfig(interaction.guild.id, 'warn_threshold', umbral);
                 updateGuildConfig(interaction.guild.id, 'warn_action', accion);
                 updateGuildConfig(interaction.guild.id, 'warn_action_duration', duracion);
-                const msg = umbral === 0
-                    ? '✅ Warn automático **desactivado**. No se aplicarán acciones automáticas.'
-                    : `✅ Al acumular **${umbral} warns** activos: **${accion.toUpperCase()}**${duracion ? ` (${duracion})` : ''}.`;
-                return interaction.reply({ content: msg, ephemeral: true });
+                updateGuildConfig(interaction.guild.id, 'warn_default_expiry', expGlobal);
+                const lines = [];
+                if (umbral === 0 || accion === 'none') {
+                    lines.push('✅ Acción automática de warns **desactivada**.');
+                } else {
+                    lines.push(`✅ Al acumular **${umbral} warns** activos: **${accion.toUpperCase()}**${duracion ? ` (${duracion})` : ''}.`);
+                }
+                lines.push(expGlobal
+                    ? `⌛ Expiración global configurada a **${expGlobal}**. Todos los warns nuevos expirarán automáticamente.`
+                    : '⚠️ Expiración global **desactivada**. Los warns serán permanentes salvo que se especifique al aplicarlos.');
+                return interaction.reply({ content: lines.join('\n'), ephemeral: true });
             } else if (subcommand === 'silenciado-rol') {
                 if (!await requireLevel(interaction, getGuildConfig(interaction.guild.id), 'op')) return;
                 const rol = interaction.options.getRole('rol');
