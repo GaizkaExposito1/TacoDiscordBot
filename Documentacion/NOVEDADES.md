@@ -43,6 +43,20 @@ Sin cambios visibles para usuarios del servidor.
 • Paginación de 10 en 10 en todas las tablas.
 • Badge de rol en el header del perfil: Op / Admin / Mod / Staff.
 
+🏠 DASHBOARD
+• Nuevo stat card "Tiempo medio de resolución" (últimos 30 días) — solo Admin+.
+  Muestra el tiempo en minutos u horas según el valor.
+• Widget de estado del bot en el header: indica online/offline con latencia del
+  shard, uptime y número de servidores activos. Se actualiza cada 30 segundos.
+
+👥 STAFF
+• La tabla de Staff ahora muestra estadísticas de actividad por miembro:
+  tickets gestionados, sanciones aplicadas y rating medio recibido.
+
+💬 MENSAJES EMBED
+• El preview de los mensajes de bienvenida/despedida muestra el número real
+  de miembros del servidor en el placeholder {count}.
+
 🔐 CONTROL DE ACCESO:
 • Mods: solo ven sanciones totales y activas en perfiles de usuarios regulares.
 • Mods: bloqueados (403) al intentar ver el perfil de cualquier miembro del staff.
@@ -53,6 +67,8 @@ Sin cambios visibles para usuarios del servidor.
   Los avatares de usuarios se almacenan en BD y se muestran en los perfiles.
 • cacheUser actualizado en tickets y moderación para guardar el avatar.
 • Separador de canales de ticket corregido: carácter 〕 (U+3015).
+• Heartbeat automático hacia el dashboard cada 30s (requiere configuración
+  de DASHBOARD_HEARTBEAT_URL y HEARTBEAT_SECRET en .env).
 ```
 
 > Esta versión no incluye cambios en comandos de Discord.

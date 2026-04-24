@@ -6,8 +6,8 @@ const env = cleanEnv(process.env, {
     CLIENT_ID: str({ desc: 'El Client ID de tu aplicación de Discord' }),
     GUILD_ID: str({ desc: 'El ID del servidor (Guild) donde se registrarán los comandos' }),
     NODE_ENV: str({ choices: ['development', 'test', 'production', 'Test', 'Produccion', 'Desarrollo'], default: 'Produccion' }),
-    // Agrega más variables aquí si las necesitas
-    // PORT: num({ default: 3000 }),
+    DASHBOARD_HEARTBEAT_URL: str({ default: '', docs: 'URL del endpoint de heartbeat del dashboard (ej: http://localhost:4001/api/bot/heartbeat)' }),
+    HEARTBEAT_SECRET: str({ default: '', docs: 'Secreto compartido con el dashboard para autenticar el heartbeat' }),
 });
 
 module.exports = env;
