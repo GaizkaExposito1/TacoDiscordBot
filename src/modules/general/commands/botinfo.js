@@ -29,11 +29,10 @@ module.exports = {
             const level = interaction.member ? getMemberLevel(interaction.member, config) : 'user';
             const isStaff = ['mod', 'admin', 'op'].includes(level);
 
-            // Contar miembros reales (sin bots) via API
+            // Contar miembros aproximado (sin fetch masivo que causa rate limits)
             let humanCount = 'N/A';
             if (interaction.guild) {
-                const allMembers = await interaction.guild.members.fetch();
-                humanCount = allMembers.filter(m => !m.user.bot).size;
+                humanCount = interaction.guild.approximateMemberCount ?? interaction.guild.memberCount ?? 'N/A';
             }
 
             const embed = new EmbedBuilder()

@@ -133,8 +133,8 @@ module.exports = {
         // --- FIN DE VERIFICACIÓN DE ROLES ---
 
         // Cachear nombres de usuario para el panel web
-        cacheUser(targetUser.id, targetUser.globalName ?? targetUser.username);
-        cacheUser(moderator.id, moderator.globalName ?? moderator.username);
+        cacheUser(targetUser.id, targetUser.globalName ?? targetUser.username, targetUser.avatar ?? null);
+        cacheUser(moderator.id, moderator.globalName ?? moderator.username, moderator.avatar ?? null);
 
         // Verificar si el bot tiene permisos
         if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {

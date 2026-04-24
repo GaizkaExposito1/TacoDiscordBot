@@ -3,6 +3,182 @@ const logger = require('../../../utils/logger');
 const { getGuildConfig } = require('../../../database/database');
 const { getMemberLevel } = require('../../../utils/permCheck');
 
+const LEVEL_ORDER = { user: 0, mod: 1, admin: 2, op: 3 };
+
+// Minimum level required per "commandName" or "commandName.subcommandName"
+// When adding a new command/subcommand, add ONE entry here — the description
+// is pulled automatically from the command builder, so help stays in sync.
+const LEVEL_MAP = {
+    // Tickets
+    'tickets.close':                'user',
+    'tickets.claim':                'mod',
+    'tickets.unclaim':              'mod',
+    'tickets.add':                  'mod',
+    'tickets.remove':               'mod',
+    'tickets.ratings':              'mod',
+    'tickets.config':               'op',
+    'tickets.setup':                'op',
+    'tickets.panel':                'op',
+    // Suggestions
+    'suggestions.send':             'user',
+    'suggestions.action':           'mod',
+    'suggestions.setup':            'op',
+    // Moderation — mod+
+    'moderation.warn':              'mod',
+    'moderation.timeout':           'mod',
+    'moderation.kick':              'mod',
+    'moderation.history':           'mod',
+    'moderation.slowmode':          'mod',
+    'moderation.chat-clear':        'mod',
+    // Moderation — admin+
+    'moderation.ban':               'admin',
+    'moderation.unban':             'admin',
+    'moderation.remove-sanction':   'admin',
+    'moderation.warn-config':       'admin',
+    // Moderation — op+
+    'moderation.anuncio':           'op',
+    'moderation.update-staff':      'op',
+    'moderation.setup-roles':       'op',
+    'moderation.roles-info':        'op',
+    'moderation.bienvenida-setup':  'op',
+    'moderation.bienvenida-mensaje':'op',
+    'moderation.bienvenida-estado': 'op',
+    'moderation.bienvenida-rol-add':'op',
+    'moderation.bienvenida-rol-remove':'op',
+    'moderation.bienvenida-rol-lista':'op',
+    'moderation.bienvenida-vista':  'op',
+    'moderation.bienvenida-info':   'op',
+    // Polls
+    'poll.create':                  'admin',
+    'poll.end':                     'admin',
+    'poll.results':                 'admin',
+    'poll.list':                    'admin',
+    'poll.clear':                   'op',
+    // Audit
+    'audit.toggle':                 'op',
+    'audit.lookup':                 'op',
+    // Top-level (no subcommands)
+    'botinfo':                      'user',
+    'help':                         'user',
+    'config':                       'op',
+};
+
+// Ordered sections with subcommands
+const SECTION_CONFIG = [
+    { name: 'tickets',     label: '🎫 Tickets y Soporte' },
+    { name: 'suggestions', label: '📢 Sugerencias' },
+    { name: 'moderation',  label: '⚔️ Moderación' },
+    { name: 'poll',        label: '📊 Encuestas' },
+    { name: 'audit',       label: '🔍 Auditoría' },
+];
+
+// Top-level commands shown in the utility field
+const TOP_LEVEL_CMDS = ['botinfo', 'help', 'config'];
+
+/**
+ * Returns the registered command, accounting for the 'd' dev-mode prefix.
+ */
+function getCmd(client, realName) {
+    return client.commands.get(realName) ?? client.commands.get(`d${realName}`);
+}
+
+/**
+ * Returns formatted subcommand lines visible to the given user level.
+ * Names and descriptions come directly from the registered SlashCommandBuilder,
+ * so they stay in sync whenever the command definition is updated.
+ */
+function buildCmdLines(client, cmdRealName, userLevel) {
+    const userOrder = LEVEL_ORDER[userLevel] ?? 0;
+    const cmd = getCmd(client, cmdRealName);
+    if (!cmd) return [];
+    const SUB_COMMAND = 1;
+    const cmdJson = cmd.data.toJSON();
+    return (cmdJson.options ?? [])
+        .filter(o => o.type === SUB_COMMAND)
+        .filter(sub => (LEVEL_ORDER[LEVEL_MAP[`${cmdRealName}.${sub.name}`] ?? 'user'] ?? 0) <= userOrder)
+        .map(sub => `\`/${cmdRealName} ${sub.name}\` — ${sub.description}`);
+}
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('help')
+        .setDescription('Muestra la lista de comandos disponibles y ayuda sobre el bot.'),
+
+    async execute(interaction) {
+        try {
+            const guild = interaction.guild;
+            const member = interaction.member;
+            const config = getGuildConfig(guild.id);
+
+            const memberCount = guild.approximateMemberCount ?? guild.memberCount ?? '?';
+            const level = getMemberLevel(member, config);
+            const userOrder = LEVEL_ORDER[level] ?? 0;
+
+            const levelLabel = level === 'op'    ? '👑 Operador/Directiva'
+                             : level === 'admin' ? '⚔️ Administración'
+                             : level === 'mod'   ? '🛡️ Moderador'
+                             : '👤 Usuario';
+            const embedColor = level === 'op'    ? '#9B59B6'
+                             : level === 'admin' ? '#FF0000'
+                             : level === 'mod'   ? '#FF9900'
+                             : '#57F287';
+
+            const fields = [];
+
+            // Commands with subcommands — auto-built from the registered builders
+            for (const section of SECTION_CONFIG) {
+                const lines = buildCmdLines(interaction.client, section.name, level);
+                if (lines.length === 0) continue;
+                fields.push({ name: section.label, value: lines.join('\n') });
+            }
+
+            // Top-level commands
+            const topLines = TOP_LEVEL_CMDS
+                .filter(name => (LEVEL_ORDER[LEVEL_MAP[name] ?? 'user'] ?? 0) <= userOrder)
+                .map(name => {
+                    const cmd = getCmd(interaction.client, name);
+                    const desc = cmd?.data?.toJSON()?.description ?? '';
+                    return `\`/${name}\` — ${desc}`;
+                });
+            if (topLines.length) fields.push({ name: '🔍 Utilidad', value: topLines.join('\n') });
+
+            // Useful links (always shown)
+            fields.push({
+                name: '🌐 Enlaces Útiles',
+                value: '🔗 **IP:** `play.tacoland.es` / `bedrock.tacoland.es`\n' +
+                       '🛒 **Tienda:** [tienda.tacoland.es](https://tienda.tacoland.es)\n' +
+                       '🌐 **Web:** [tacoland.es](https://tacoland.es)',
+            });
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🌮 Ayuda de ${interaction.client.user.username}`)
+                .setDescription(
+                    `¡Hola, ${member.displayName}! Soy el asistente integral de **TacoLand**.\n` +
+                    `Estás viendo el panel de **${levelLabel}**.\n\n` +
+                    `👥 Actualmente somos **${memberCount} miembros** en el servidor.\n\n` +
+                    `Usa los comandos empezando con \`/\` para interactuar conmigo.`
+                )
+                .setColor(embedColor)
+                .setThumbnail(interaction.client.user.displayAvatarURL())
+                .addFields(...fields)
+                .setFooter({
+                    text: `Solicitado por ${interaction.user.tag}`,
+                    iconURL: interaction.user.displayAvatarURL(),
+                })
+                .setTimestamp();
+
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+        } catch (error) {
+            logger.error('[HelpCommand] Error al ejecutar:', error);
+            await interaction.reply({
+                content: '❌ Hubo un error al intentar mostrar el menú de ayuda.',
+                ephemeral: true,
+            });
+        }
+    },
+};
+
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')

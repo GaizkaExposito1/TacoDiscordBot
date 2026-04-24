@@ -117,7 +117,7 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
         
         // Limpiar nombre del departamento para usarlo en el canal (quitar espacios y caracteres raros)
         const safeDeptName = departmentName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
-        const channelName = `${safeDeptName}-${ticketNumber}`;
+        const channelName = `🟢〕${safeDeptName}-${ticketNumber}`;
 
         const permissionOverwrites = [
             // Denegar a @everyone
@@ -182,7 +182,7 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
         }
 
         // Cachear nombre del usuario para el panel web
-        cacheUser(user.id, user.globalName ?? user.username);
+        cacheUser(user.id, user.globalName ?? user.username, user.avatar ?? null);
 
         // ─── Embed de bienvenida ───
         const welcomeEmbed = buildEmbed(guild.id, 'ticket_welcome', {
@@ -290,7 +290,7 @@ async function handleClaimTicket(interaction) {
     // ─── Reclamar ───
     try {
         claimTicket(channel.id, user.id);
-        cacheUser(user.id, user.globalName ?? user.username);
+        cacheUser(user.id, user.globalName ?? user.username, user.avatar ?? null);
     } catch (error) {
         logger.error('[Ticket:Claim] DB Error:', error);
         return replyError(interaction, 'Error al guardar reclamación en base de datos.', true);

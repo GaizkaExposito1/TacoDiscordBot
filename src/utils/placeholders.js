@@ -26,6 +26,10 @@ function replacePlaceholders(text, data = {}) {
         '{member_count}': data.memberCount != null ? String(data.memberCount) : '0',
         '{date}': data.date ?? new Date().toLocaleDateString('es-ES'),
         '{time}': data.time ?? new Date().toLocaleTimeString('es-ES'),
+        '{priority_emoji}': data.priority_emoji ?? '',
+        '{priority_label}': data.priority_label ?? '',
+        '{old_priority_emoji}': data.old_priority_emoji ?? '⚪',
+        '{old_priority_label}': data.old_priority_label ?? 'Sin prioridad',
     };
 
     let result = text;

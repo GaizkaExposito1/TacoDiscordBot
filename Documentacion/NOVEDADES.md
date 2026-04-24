@@ -2,6 +2,63 @@
 
 ---
 
+# 🆕 v1.6.0 — Perfiles de usuario, mejoras del panel y correcciones
+
+## 👤 Para usuarios
+
+```
+📢 | NOVEDADES DEL BOT — v1.6.0
+
+Esta versión incluye mejoras internas del panel de gestión.
+Sin cambios visibles para usuarios del servidor.
+```
+
+## 🛡️ Para staff
+
+```
+📢 | NOVEDADES DEL PANEL — v1.6.0 (STAFF)
+
+🔍 PERFILES DE USUARIO
+• Las filas de la página Staff son clicables: haz clic en el nombre o avatar
+  para ir directamente al perfil del miembro.
+• Desde tu perfil puedes ver tus sanciones totales y activas.
+• Los perfiles de otros miembros del staff requieren nivel Admin para verse.
+  Como Mod, recibirás un aviso de permisos si intentas acceder.
+
+🎫 TICKETS
+• Columna "Asunto" eliminada de la tabla de tickets.
+```
+
+## ⚙️ Para operators
+
+```
+⚙️ | NOVEDADES DEL PANEL — v1.6.0 (OPERATOR)
+
+🔍 PERFILES DE USUARIO — Vista completa (Admin+):
+• Historial de tickets recibidos: staff asignado, fechas, rating.
+• Historial de sanciones recibidas: tipo, razón, staff, estado.
+• Si el usuario es staff: bloque con estadísticas de gestión
+  (tickets gestionados, rating medio recibido, tickets abiertos como staff).
+• Pestañas "Tickets gestionados" y "Sanciones aplicadas" en el perfil de staff.
+• Paginación de 10 en 10 en todas las tablas.
+• Badge de rol en el header del perfil: Op / Admin / Mod / Staff.
+
+🔐 CONTROL DE ACCESO:
+• Mods: solo ven sanciones totales y activas en perfiles de usuarios regulares.
+• Mods: bloqueados (403) al intentar ver el perfil de cualquier miembro del staff.
+• Admin+: acceso completo a todos los perfiles.
+
+🔧 BOT — MEJORA TÉCNICA:
+• Migración v18: columna avatar_hash en user_cache.
+  Los avatares de usuarios se almacenan en BD y se muestran en los perfiles.
+• cacheUser actualizado en tickets y moderación para guardar el avatar.
+• Separador de canales de ticket corregido: carácter 〕 (U+3015).
+```
+
+> Esta versión no incluye cambios en comandos de Discord.
+
+---
+
 # 🆕 v1.5.0 — Auditoría completa de sanciones, correcciones y mejoras del panel
 
 ## ⚙️ Para operators

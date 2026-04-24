@@ -55,6 +55,12 @@ const DEFAULT_MESSAGES = {
         color: COLORS.SUCCESS,
         footer: 'Tacoland Network',
     },
+    ticket_priority: {
+        title: '{priority_emoji}Prioridad Actualizada',
+        description: 'La prioridad ha cambiado de **{old_priority_emoji}{old_priority_label}** a **{priority_emoji}{priority_label}** por {staff}.',
+        color: COLORS.WARNING,
+        footer: 'Tacoland Network',
+    },
 };
 
 module.exports = {

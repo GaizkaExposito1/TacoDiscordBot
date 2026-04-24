@@ -25,7 +25,8 @@ const {
     setTicketMessage,
     removeDepartment,
     updateDepartmentForm,
-    getPanelReference
+    getPanelReference,
+    setTicketPriority,
 } = require('../../../database/database');
 
 const { processTicketClosure, handleClaimTicket, handleUnclaimTicket } = require('../services/ticketService');
@@ -110,6 +111,17 @@ module.exports = {
         .addSubcommand(sub => sub.setName('transcript')
             .setDescription('Genera una transcripción HTML del canal actual (Prueba).')
         )
+        .addSubcommand(sub => sub.setName('priority')
+            .setDescription('Establece la prioridad del ticket (Staff).')
+            .addStringOption(opt => opt.setName('nivel')
+                .setDescription('Nivel de prioridad')
+                .setRequired(true)
+                .addChoices(
+                    { name: '🔴 Alta', value: 'high' },
+                    { name: '🟡 Media', value: 'medium' },
+                    { name: '🟢 Baja', value: 'low' },
+                ))
+        )
 
         // --- SETUP / PANEL (setup-tickets.js) ---
         .addSubcommand(sub => sub.setName('setup')
@@ -149,7 +161,7 @@ module.exports = {
             .addSubcommand(sub => sub.setName('logs').setDescription('Canal de logs').addChannelOption(o=>o.setName('canal').setDescription('Canal').addChannelTypes(ChannelType.GuildText).setRequired(true)))
             .addSubcommand(sub => sub.setName('transcripciones').setDescription('Canal transcripciones').addChannelOption(o=>o.setName('canal').setDescription('Canal').addChannelTypes(ChannelType.GuildText).setRequired(true)))
             .addSubcommand(sub => sub.setName('categoria').setDescription('Categoría tickets').addChannelOption(o=>o.setName('categoria').setDescription('Categoría').addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
-            .addSubcommand(sub => sub.setName('mensaje').setDescription('Mensajes personalizados').addStringOption(o=>o.setName('tipo').setDescription('Tipo').setRequired(true).addChoices({name:'Panel',value:'panel'},{name:'Bienvenida',value:'ticket_welcome'},{name:'Cierre',value:'ticket_close'},{name:'Reclamado',value:'ticket_claimed'})).addStringOption(o=>o.setName('titulo').setDescription('Titulo')).addStringOption(o=>o.setName('descripcion').setDescription('Descripcion')).addStringOption(o=>o.setName('color').setDescription('Color')).addStringOption(o=>o.setName('footer').setDescription('Footer')))
+            .addSubcommand(sub => sub.setName('mensaje').setDescription('Mensajes personalizados').addStringOption(o=>o.setName('tipo').setDescription('Tipo').setRequired(true).addChoices({name:'Panel',value:'panel'},{name:'Bienvenida',value:'ticket_welcome'},{name:'Cierre',value:'ticket_close'},{name:'Reclamado',value:'ticket_claimed'},{name:'Prioridad',value:'ticket_priority'})).addStringOption(o=>o.setName('titulo').setDescription('Titulo')).addStringOption(o=>o.setName('descripcion').setDescription('Descripcion')).addStringOption(o=>o.setName('color').setDescription('Color')).addStringOption(o=>o.setName('footer').setDescription('Footer')))
             .addSubcommand(sub => sub.setName('dept-add').setDescription('Añadir depto').addStringOption(o=>o.setName('nombre').setDescription('Nombre').setRequired(true)).addStringOption(o=>o.setName('emoji').setDescription('Emoji')).addStringOption(o=>o.setName('descripcion').setDescription('Desc')))
             .addSubcommand(sub => sub.setName('dept-del').setDescription('Eliminar depto').addIntegerOption(o=>o.setName('id').setDescription('ID Depto').setRequired(true)))
             .addSubcommand(sub => sub.setName('contador').setDescription('Modo de numeración de tickets').addStringOption(o=>o.setName('modo').setDescription('Modo del contador').setRequired(true).addChoices({name:'Global (un único contador para todos)',value:'global'},{name:'Por categoría (contador por departamento)',value:'category'})))
@@ -262,9 +274,59 @@ module.exports = {
              return;
         }
 
+        // 1.6 PRIORITY — establecer prioridad del ticket
+        if (subcommand === 'priority') {
+            const ticket = getTicketByChannel(channel.id);
+            if (!ticket) return replyError(interaction, 'Este comando solo se puede usar dentro de un canal de ticket.', true);
+
+            const member = await guild.members.fetch(user.id);
+            const isStaff = config.staff_role_id && member.roles.cache.has(config.staff_role_id);
+            const isAdmin = (config.admin_role_id && member.roles.cache.has(config.admin_role_id)) || member.permissions.has(PermissionFlagsBits.Administrator);
+
+            if (!isStaff && !isAdmin) return replyError(interaction, 'Solo el staff puede cambiar la prioridad del ticket.', true);
+
+            const nivel = options.getString('nivel');
+            const PRIORITY_META = {
+                high:   { emoji: '🔴', label: 'Alta' },
+                medium: { emoji: '🟡', label: 'Media' },
+                low:    { emoji: '🟢', label: 'Baja' },
+            };
+            const meta = PRIORITY_META[nivel];
+
+            setTicketPriority(channel.id, nivel);
+
+            // Renombrar canal con emoji de prioridad como prefijo
+            try {
+                const PRIORITY_PREFIXES = ['🔴〕', '🟡〕', '🟢〕', '🔴】', '🟡】', '🟢】', '🔴-', '🟡-', '🟢-'];
+                let cleanName = channel.name;
+                for (const prefix of PRIORITY_PREFIXES) {
+                    if (cleanName.startsWith(prefix)) { cleanName = cleanName.slice(prefix.length); break; }
+                }
+                await channel.setName(`${meta.emoji}〕${cleanName}`, `Prioridad ${meta.label} establecida por ${user.tag}`);
+            } catch (err) {
+                logger.warn('[Tickets] No se pudo renombrar el canal de prioridad:', err.message);
+            }
+            // Enviar embed de notificación en el canal
+            const PRIORITY_META_ALL = {
+                high:   { emoji: '🔴', label: 'Alta' },
+                medium: { emoji: '🟡', label: 'Media' },
+                low:    { emoji: '🟢', label: 'Baja' },
+            };
+            const oldMeta = ticket.priority ? (PRIORITY_META_ALL[ticket.priority] ?? null) : null;
+            const priorityEmbed = buildEmbed(guild.id, 'ticket_priority', {
+                priority_emoji:     meta.emoji,
+                priority_label:     meta.label,
+                old_priority_emoji: oldMeta ? oldMeta.emoji : '⚪',
+                old_priority_label: oldMeta ? oldMeta.label : 'Sin prioridad',
+                staff: `<@${user.id}>`,
+            });
+            await channel.send({ embeds: [priorityEmbed] }).catch(() => {});
+
+            return replySuccess(interaction, `Prioridad establecida a ${meta.emoji} **${meta.label}**.`, true);
+        }
+
         // 2. SETUP (setup-tickets.js)
         if (subcommand === 'setup') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return replyError(interaction, 'Permiso denegado.', true);
             if (!config.ticket_category_id) return replyError(interaction, 'Configura la categoría primero: `/tickets config categoria`', true);
 
             let departments = getDepartments(guild.id);

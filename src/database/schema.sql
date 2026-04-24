@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS sanctions (
     type            TEXT NOT NULL CHECK(type IN ('warn', 'timeout', 'kick', 'ban')),
     reason          TEXT DEFAULT 'Sin razón proporcionada',
     duration        TEXT, -- Para timeouts (ej: 1h, 1d)
+    status          TEXT DEFAULT 'active', -- active, revoked, expired
     expires_at      TEXT, -- Para warns con expiración automática (ISO timestamp)
     timestamp       TEXT DEFAULT (datetime('now'))
 );

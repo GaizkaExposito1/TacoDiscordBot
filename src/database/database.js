@@ -222,6 +222,26 @@ const MIGRATIONS = [
             }
         },
     },
+    {
+        version: 17,
+        description: 'Columna priority en tickets (high, medium, low)',
+        up(db) {
+            const cols = db.pragma('table_info(tickets)').map(c => c.name);
+            if (!cols.includes('priority')) {
+                db.exec(`ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT NULL`);
+            }
+        },
+    },
+    {
+        version: 18,
+        description: 'Columna avatar_hash en user_cache',
+        up(db) {
+            const cols = db.pragma('table_info(user_cache)').map(c => c.name);
+            if (!cols.includes('avatar_hash')) {
+                db.exec(`ALTER TABLE user_cache ADD COLUMN avatar_hash TEXT DEFAULT NULL`);
+            }
+        },
+    },
 ];
 
 // Última versión que aplicaba el sistema antiguo de ALTER TABLE manual.
@@ -558,7 +578,7 @@ function removeDepartment(id, guildId) {
 
 function createTicket(guildId, channelId, userId, departmentId, subject, preAssignedNumber = null) {
     const ticketNumber = preAssignedNumber !== null ? preAssignedNumber : incrementTicketCounter(guildId);
-    run(`INSERT INTO tickets (guild_id, channel_id, user_id, department_id, subject) VALUES (?, ?, ?, ?, ?)`,
+    run(`INSERT INTO tickets (guild_id, channel_id, user_id, department_id, subject, priority) VALUES (?, ?, ?, ?, ?, 'low')`,
         [guildId, channelId, userId, departmentId, subject]);
     const ticket = queryOne('SELECT * FROM tickets WHERE channel_id = ?', [channelId]);
     return { ...ticket, number: ticketNumber };
@@ -607,6 +627,10 @@ function updateTicketRating(ticketId, rating, comment = null) {
     } else if (comment !== null) {
         run('UPDATE tickets SET rating_comment = ? WHERE id = ?', [comment, ticketId]);
     }
+}
+
+function setTicketPriority(channelId, priority) {
+    run('UPDATE tickets SET priority = ? WHERE channel_id = ?', [priority, channelId]);
 }
 
 // ============================================================
@@ -961,16 +985,17 @@ function updateTicketLastActivity(channelId) {
  * Guarda o actualiza el nombre en caché de un usuario de Discord.
  * No‐op si los argumentos son falsy o si la tabla no existe aún.
  */
-function cacheUser(userId, username) {
+function cacheUser(userId, username, avatarHash = null) {
     if (!userId || !username) return;
     try {
         getDatabase().prepare(`
-            INSERT INTO user_cache (user_id, username, updated_at)
-            VALUES (?, ?, datetime('now'))
+            INSERT INTO user_cache (user_id, username, avatar_hash, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
             ON CONFLICT(user_id) DO UPDATE SET
-                username   = excluded.username,
-                updated_at = excluded.updated_at
-        `).run(userId, username);
+                username    = excluded.username,
+                avatar_hash = COALESCE(excluded.avatar_hash, user_cache.avatar_hash),
+                updated_at  = excluded.updated_at
+        `).run(userId, username, avatarHash ?? null);
     } catch (_) { /* no‐critical */ }
 }
 
@@ -1023,6 +1048,7 @@ module.exports = {
     setTranscriptUrl,
     setCloseAuditLogId,
     updateTicketRating,
+    setTicketPriority,
     // Audit
     addAuditLog,
     getAuditLogs,
