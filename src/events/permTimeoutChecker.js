@@ -3,7 +3,9 @@ const logger = require('../utils/logger');
 
 // Re-aplica el timeout permanente si quedan menos de 8 días para que caduque (last_applied + 20d)
 const REAPPLY_AFTER_MS = 20 * 24 * 60 * 60 * 1000; // 20 días
-const MAX_TIMEOUT_MS  = 28 * 24 * 60 * 60 * 1000;  // 28 días (límite Discord)
+// Usar 27 días en vez del límite exacto de 28 para evitar que la latencia de red
+// empuje el timestamp por encima del máximo permitido por Discord.
+const MAX_TIMEOUT_MS  = 27 * 24 * 60 * 60 * 1000;  // 27 días (límite Discord: 28d)
 
 module.exports = {
     name: 'ready',

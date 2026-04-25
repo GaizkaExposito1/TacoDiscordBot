@@ -27,6 +27,8 @@ const {
     decrementDepartmentTicketCount,
     incrementTicketCounter,
     updateTicketRating,
+    cacheUser,
+    getTicketMessage,
 } = require('../../../database/database');
 const { buildEmbed, simpleEmbed } = require('../../../utils/embeds');
 const { replyError, replyWarning, replySuccess, replyInfo } = require('../../../utils/responses');
@@ -34,6 +36,33 @@ const { logAudit } = require('../../../utils/audit');
 const { generateTranscript } = require('../../../utils/transcript');
 const { COLORS, AUDIT_ACTIONS } = require('../../../utils/constants');
 const logger = require('../../../utils/logger');
+
+/**
+ * Reemplaza variables como {staff} o {user} en un texto.
+ */
+function applyVars(text, vars) {
+    if (!text) return text;
+    return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, v), text);
+}
+
+/**
+ * Devuelve un EmbedBuilder usando el embed configurado en la BD para `key`,
+ * con fallback a los parámetros por defecto.
+ * @param {string} guildId
+ * @param {string} key          - clave en ticket_messages (ej: 'ticket_claim')
+ * @param {Object} vars         - variables a sustituir, ej: { staff: '<@123>' }
+ * @param {string} defaultTitle
+ * @param {string} defaultDescription
+ * @param {string} defaultColor - color hex o COLORS.*
+ */
+function resolveDbEmbed(guildId, key, vars, defaultTitle, defaultDescription, defaultColor) {
+    const stored = getTicketMessage(guildId, key);
+    const title  = applyVars(stored?.title  || defaultTitle,       vars);
+    const desc   = applyVars(stored?.description || defaultDescription, vars);
+    const color  = stored?.color || defaultColor;
+    const footer = stored?.footer || 'Tacoland Network';
+    return simpleEmbed(title, desc, color).setFooter({ text: footer });
+}
 
 /**
  * Crea un ticket (canal privado) para el usuario.
@@ -88,7 +117,7 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
         
         // Limpiar nombre del departamento para usarlo en el canal (quitar espacios y caracteres raros)
         const safeDeptName = departmentName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
-        const channelName = `${safeDeptName}-${ticketNumber}`;
+        const channelName = `🟢〕${safeDeptName}-${ticketNumber}`;
 
         const permissionOverwrites = [
             // Denegar a @everyone
@@ -151,6 +180,9 @@ async function openTicket(interaction, departmentId, departmentName, answers) {
             if (channel) await channel.delete().catch(() => {});
             throw dbError;
         }
+
+        // Cachear nombre del usuario para el panel web
+        cacheUser(user.id, user.globalName ?? user.username, user.avatar ?? null);
 
         // ─── Embed de bienvenida ───
         const welcomeEmbed = buildEmbed(guild.id, 'ticket_welcome', {
@@ -258,6 +290,7 @@ async function handleClaimTicket(interaction) {
     // ─── Reclamar ───
     try {
         claimTicket(channel.id, user.id);
+        cacheUser(user.id, user.globalName ?? user.username, user.avatar ?? null);
     } catch (error) {
         logger.error('[Ticket:Claim] DB Error:', error);
         return replyError(interaction, 'Error al guardar reclamación en base de datos.', true);
@@ -341,7 +374,10 @@ async function handleClaimTicket(interaction) {
 
     // Mensaje en el chat (visible para todos)
     await channel.send({
-        embeds: [simpleEmbed(
+        embeds: [resolveDbEmbed(
+            guild.id,
+            'ticket_claim',
+            { staff: `<@${user.id}>` },
             '✋ Ticket Reclamado',
             `Este ticket ha sido reclamado por <@${user.id}>. En breve te atenderá.`,
             COLORS.WARNING
@@ -453,7 +489,10 @@ async function handleUnclaimTicket(interaction) {
 
     // Mensaje en el chat (visible para todos)
     await channel.send({
-        embeds: [simpleEmbed(
+        embeds: [resolveDbEmbed(
+            guild.id,
+            'ticket_unclaim',
+            { staff: `<@${user.id}>` },
             '🔓 Ticket Liberado',
             `<@${user.id}> ha liberado este ticket. Ahora otro miembro del staff puede reclamarlo.`,
             COLORS.INFO
@@ -512,7 +551,12 @@ async function processTicketClosure(interaction, reason = 'No especificada') {
     // ─── Generar transcripción ───
     let transcript = null;
     try {
-        transcript = await generateTranscript(channel, { ticketId: ticketNumber });
+        const result = await generateTranscript(channel, { ticketId: ticketNumber });
+        transcript = result.attachment;
+        // Guardar URL local en DB de inmediato (para el panel web)
+        if (result.localUrl) {
+            setTranscriptUrl(channel.id, result.localUrl);
+        }
     } catch (err) {
         logger.error('[Tickets] Error al generar transcripción:', err);
     }
@@ -568,53 +612,38 @@ async function processTicketClosure(interaction, reason = 'No especificada') {
         });
     }
 
-    // ─── Enviar transcripción al canal de transcripciones (si está configurado) ───
-    if (config.transcript_channel_id && transcript) {
-        try {
-            const transcriptChannel = await client.channels.fetch(config.transcript_channel_id);
-            if (transcriptChannel?.isTextBased()) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle(`📄 Transcripción — Ticket #${ticketNumber}`)
-                    .setDescription(`**Departamento:** ${ticket.department_name ?? 'Desconocido'}\n**Usuario:** <@${ticket.user_id}>\n**Cerrado por:** <@${user.id}>\n**Fecha:** <t:${Math.floor(Date.now() / 1000)}:f>`)
-                    .setColor(COLORS.SUCCESS)
-                    .setFooter({ text: 'Tacoland Network' })
-                    .setTimestamp();
-
-                const sentMessage = await transcriptChannel.send({ embeds: [logEmbed], files: [transcript] });
-                
-                // Obtener URL del archivo adjunto y guardar en DB
-                const attachmentUrl = sentMessage.attachments.first()?.url;
-                if (attachmentUrl) {
-                    setTranscriptUrl(channel.id, attachmentUrl);
-                }
-            }
-        } catch (err) {
-            logger.error('[Tickets] Error al enviar transcripción al canal configurado:', err);
+    // ─── Enviar transcripción al canal (transcript_channel → log_channel como fallback) ───
+    if (transcript) {
+        // Intentar canales en orden: transcript primero, luego log como fallback
+        const channelsToTry = [];
+        if (config.transcript_channel_id) channelsToTry.push(config.transcript_channel_id);
+        if (config.log_channel_id && config.log_channel_id !== config.transcript_channel_id) {
+            channelsToTry.push(config.log_channel_id);
         }
-    }
-    
-    // Si no hay canal de transcripciones, usar el de logs como fallback (opcional, pero buena práctica)
-    else if (config.log_channel_id && transcript) {
-        try {
-            const logChannel = await client.channels.fetch(config.log_channel_id);
-            if (logChannel?.isTextBased()) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle(`📄 Transcripción — Ticket #${ticketNumber}`)
-                    .setDescription(`**Usuario:** <@${ticket.user_id}>\n**Cerrado por:** <@${user.id}>\n**Estado:** Cerrado`)
-                    .setColor(COLORS.DANGER)
-                    .setFooter({ text: 'Tacoland Network' })
-                    .setTimestamp();
 
-                const sentLogMessage = await logChannel.send({ embeds: [logEmbed], files: [transcript] });
-
-                // Obtener URL del archivo adjunto y guardar en DB
-                const attachmentUrlFallback = sentLogMessage.attachments.first()?.url;
-                if (attachmentUrlFallback) {
-                    setTranscriptUrl(channel.id, attachmentUrlFallback);
+        let transcriptSent = false;
+        for (const channelId of channelsToTry) {
+            if (transcriptSent) break;
+            try {
+                const targetChannel = await client.channels.fetch(channelId);
+                if (targetChannel?.isTextBased()) {
+                    const logEmbed = new EmbedBuilder()
+                        .setTitle(`📄 Transcripción — Ticket #${ticketNumber}`)
+                        .setDescription(`**Departamento:** ${ticket.department_name ?? 'Desconocido'}\n**Usuario:** <@${ticket.user_id}>\n**Cerrado por:** <@${user.id}>\n**Fecha:** <t:${Math.floor(Date.now() / 1000)}:f>`)
+                        .setColor(COLORS.SUCCESS)
+                        .setFooter({ text: 'Tacoland Network' })
+                        .setTimestamp();
+                    await targetChannel.send({ embeds: [logEmbed], files: [transcript] });
+                    logger.info(`[Tickets] Transcripción enviada al canal ${channelId}`);
+                    transcriptSent = true;
                 }
+            } catch (err) {
+                logger.warn(`[Tickets] No se pudo enviar transcripción al canal ${channelId}: ${err.message}`);
             }
-        } catch (err) {
-            logger.error('[Tickets] Error al enviar log de transcripción:', err);
+        }
+
+        if (!transcriptSent && channelsToTry.length > 0) {
+            logger.error('[Tickets] ⚠️ Ningún canal válido para transcripciones. Actualiza transcript_channel_id y/o log_channel_id en la configuración.');
         }
     }
 
@@ -672,7 +701,13 @@ async function updateAuditLogRating(client, ticketId, rating, feedback) {
             if (config && config.log_channel_id) {
                 const logChannel = await client.channels.fetch(config.log_channel_id);
                 if (logChannel) {
-                    const logMessage = await logChannel.messages.fetch(ticket.close_audit_log_id);
+                    let logMessage;
+                    try {
+                        logMessage = await logChannel.messages.fetch(ticket.close_audit_log_id);
+                    } catch (fetchErr) {
+                        // El mensaje fue borrado (10008) u otro error — saltar actualización del log
+                        if (fetchErr.code !== 10008) throw fetchErr;
+                    }
                     if (logMessage && logMessage.embeds.length > 0) {
                         const originalEmbed = EmbedBuilder.from(logMessage.embeds[0]);
                         

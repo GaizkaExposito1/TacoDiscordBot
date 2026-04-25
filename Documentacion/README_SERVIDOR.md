@@ -1,4 +1,4 @@
-# 🌮 TacoManagment Bot — Guía del Servidor (v1.4.0)
+# 🌮 TacoManagment Bot — Guía del Servidor (v1.5.0)
 
 ---
 
@@ -221,7 +221,15 @@ Acceso completo a toda la configuración del servidor.
              auto-roles, warns y auditoría. [Solo Op]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 SISTEMA INTERNO
+�️ PANEL WEB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Disponible en http://212.227.95.181 para administradores.
+  Inicia sesión con tu cuenta de Discord para acceder.
+  Funciones: ver tickets, sanciones, sugerencias, transcripts
+  y configurar el servidor desde el navegador. [Admin+]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+�🔧 SISTEMA INTERNO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Migraciones de BD versionadas — El bot aplica automáticamente los
   cambios de base de datos al arrancar usando la tabla schema_version.

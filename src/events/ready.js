@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const env = require('../config/env');
 const { exec } = require('child_process');
 const path = require('path');
+const { startHeartbeat } = require('../utils/heartbeat');
 
 module.exports = {
     name: Events.ClientReady, // v15 ready replacement
@@ -51,5 +52,8 @@ module.exports = {
                 status: 'online',
             });
         }
+
+        // Iniciar heartbeat hacia el dashboard (si está configurado)
+        startHeartbeat(client);
     },
 };

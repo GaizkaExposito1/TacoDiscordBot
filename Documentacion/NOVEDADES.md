@@ -2,7 +2,111 @@
 
 ---
 
-# 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos y Auto-cierre de tickets
+# 🆕 v1.6.0 — Perfiles de usuario, mejoras del panel y correcciones
+
+## 👤 Para usuarios
+
+```
+📢 | NOVEDADES DEL BOT — v1.6.0
+
+Esta versión incluye mejoras internas del panel de gestión.
+Sin cambios visibles para usuarios del servidor.
+```
+
+## 🛡️ Para staff
+
+```
+📢 | NOVEDADES DEL PANEL — v1.6.0 (STAFF)
+
+🔍 PERFILES DE USUARIO
+• Las filas de la página Staff son clicables: haz clic en el nombre o avatar
+  para ir directamente al perfil del miembro.
+• Desde tu perfil puedes ver tus sanciones totales y activas.
+• Los perfiles de otros miembros del staff requieren nivel Admin para verse.
+  Como Mod, recibirás un aviso de permisos si intentas acceder.
+
+🎫 TICKETS
+• Columna "Asunto" eliminada de la tabla de tickets.
+```
+
+## ⚙️ Para operators
+
+```
+⚙️ | NOVEDADES DEL PANEL — v1.6.0 (OPERATOR)
+
+🔍 PERFILES DE USUARIO — Vista completa (Admin+):
+• Historial de tickets recibidos: staff asignado, fechas, rating.
+• Historial de sanciones recibidas: tipo, razón, staff, estado.
+• Si el usuario es staff: bloque con estadísticas de gestión
+  (tickets gestionados, rating medio recibido, tickets abiertos como staff).
+• Pestañas "Tickets gestionados" y "Sanciones aplicadas" en el perfil de staff.
+• Paginación de 10 en 10 en todas las tablas.
+• Badge de rol en el header del perfil: Op / Admin / Mod / Staff.
+
+🏠 DASHBOARD
+• Nuevo stat card "Tiempo medio de resolución" (últimos 30 días) — solo Admin+.
+  Muestra el tiempo en minutos u horas según el valor.
+• Widget de estado del bot en el header: indica online/offline con latencia del
+  shard, uptime y número de servidores activos. Se actualiza cada 30 segundos.
+
+👥 STAFF
+• La tabla de Staff ahora muestra estadísticas de actividad por miembro:
+  tickets gestionados, sanciones aplicadas y rating medio recibido.
+
+💬 MENSAJES EMBED
+• El preview de los mensajes de bienvenida/despedida muestra el número real
+  de miembros del servidor en el placeholder {count}.
+
+🔐 CONTROL DE ACCESO:
+• Mods: solo ven sanciones totales y activas en perfiles de usuarios regulares.
+• Mods: bloqueados (403) al intentar ver el perfil de cualquier miembro del staff.
+• Admin+: acceso completo a todos los perfiles.
+
+🔧 BOT — MEJORA TÉCNICA:
+• Migración v18: columna avatar_hash en user_cache.
+  Los avatares de usuarios se almacenan en BD y se muestran en los perfiles.
+• cacheUser actualizado en tickets y moderación para guardar el avatar.
+• Separador de canales de ticket corregido: carácter 〕 (U+3015).
+• Heartbeat automático hacia el dashboard cada 30s (requiere configuración
+  de DASHBOARD_HEARTBEAT_URL y HEARTBEAT_SECRET en .env).
+```
+
+> Esta versión no incluye cambios en comandos de Discord.
+
+---
+
+# 🆕 v1.5.0 — Auditoría completa de sanciones, correcciones y mejoras del panel
+
+## ⚙️ Para operators
+
+```
+⚙️ | NOVEDADES — v1.5.0 (INTERNAL)
+
+🔍 AUDITORÍA DE SANCIONES
+  Todas las sanciones aplicadas via bot ahora quedan registradas
+  en el log de auditoría del panel web:
+  • /moderation warn    → acción: bot_warn
+  • /moderation timeout → acción: bot_timeout
+  • /moderation kick    → acción: bot_kick
+  • /moderation ban     → acción: bot_ban
+
+  Esto permite ver desde el panel quién aplicó cada sanción,
+  cuándo y con qué razón, junto con las acciones del panel web.
+
+📊 PANEL WEB — NOVEDADES v1.5.0
+  • Diseño completo de Tickets, Moderación, Config, Sugerencias
+    y Encuestas renovado.
+  • Ratings visibles solo para Operadores.
+  • Mensajes de bienvenida/despedida configurables desde
+    la sección "Mensajes Embed" del panel.
+  • Consola SQL: botón de datos de prueba para audit_logs.
+```
+
+> Esta versión no incluye cambios en comandos de Discord.
+
+---
+
+# 🆕 v1.4.0 — Encuestas, Slow mode, Warns automáticos, Auto-cierre de tickets y Panel Web
 
 ## � Para usuarios
 
@@ -46,13 +150,23 @@ Para cualquier duda, abre un ticket. 🌮
   configurado por los operators, se ejecutará automáticamente una acción
   (timeout, kick o ban). El result del warn incluirá un aviso de la acción tomada.
 
-⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+⚠️ EXPIRACIÓN DE WARNS
 • /moderation warn ahora acepta el parámetro opcional [expiracion].
   Ejemplos: 7d, 30d, 90d.
 • Si se especifica, el warn expirará automáticamente al cabo de ese tiempo,
   pasando de 'activo' a 'expirado' sin intervención del staff.
 • El historial (/moderation history) muestra cuándo expira cada warn.
 • Los warns expirados NO cuentan para el umbral de acción automática.
+
+🖥️ PANEL WEB (Admin+)
+• El servidor ahora tiene un panel de administración web.
+• Acceso en http://212.227.95.181 con tu cuenta de Discord.
+• Funciones disponibles:
+  - Ver y filtrar todos los tickets (abiertos y cerrados).
+  - Consultar el historial de sanciones por usuario.
+  - Revisar sugerencias y su estado.
+  - Ver estadísticas del servidor.
+  - Leer transcripts de tickets en HTML desde el navegador.
 ```
 
 ## ⚙️ Para operators
@@ -89,16 +203,28 @@ CONFIGURACIÓN NUEVA:
   (tabla schema_version). Las actualizaciones futuras del bot se
   aplicarán automáticamente al arrancar sin intervención manual.
 
-📋 PANEL DE CONFIGURACIÓN UNIFICADO (patch 24 mar 2026)
+📋 PANEL DE CONFIGURACIÓN UNIFICADO
   Nuevo /config → muestra en un solo embed toda la configuración del servidor.
   Incluye: roles, canales, tickets, bienvenida, auto-roles, warns y auditoría.
   Solo Operators tienen acceso.
 
-⚠️ EXPIRACIÓN DE WARNS (patch 24 mar 2026)
+⚠️ EXPIRACIÓN DE WARNS
   /moderation warn usuario:<@> [razon:] [expiracion:]
   → expiracion acepta: 1d, 7d, 30d, 90d, etc.
   → Vacío = warn permanente (comportamiento anterior).
   → El bot comprueba warns expirados cada 10 minutos.
+
+🖥️ PANEL WEB
+• Acceso completo en http://212.227.95.181
+• Configuración de canales y roles desde el panel (transcripts,
+  sugerencias, auditoría, mod mínimo, etc.).
+
+🔧 CORRECCIONES INTERNAS
+• /help ya no genera peticiones masivas al API de Discord para
+  obtener el número de miembros.
+• Corrección de crash al editar mensajes que eran embeds (sin texto).
+• Corrección de error al actualizar el log de cierre de un ticket
+  cuyo mensaje de auditoría había sido eliminado manualmente.
 ```
 
 ---

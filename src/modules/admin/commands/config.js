@@ -82,12 +82,18 @@ module.exports = {
             const warnAction   = config.warn_action ?? 'none';
             const warnThresh   = config.warn_threshold ?? 0;
             const warnDuration = config.warn_action_duration;
-            const warnSection  = warnThresh === 0 || warnAction === 'none'
-                ? '❌ Desactivado'
-                : [
-                    `**Umbral:** \`${warnThresh} warns\``,
-                    `**Acción:** \`${warnAction.toUpperCase()}\`${warnDuration ? ` (${warnDuration})` : ''}`,
-                ].join('\n');
+            const warnExpiry   = config.warn_default_expiry;
+            const warnLines    = [];
+            if (warnThresh > 0 && warnAction !== 'none') {
+                warnLines.push(`**Umbral:** \`${warnThresh} warns\``);
+                warnLines.push(`**Acción:** \`${warnAction.toUpperCase()}\`${warnDuration ? ` (${warnDuration})` : ''}`);
+            } else {
+                warnLines.push('❌ Acción automática desactivada');
+            }
+            warnLines.push(warnExpiry
+                ? `**Expiración global:** \`${warnExpiry}\``
+                : '**Expiración global:** `Desactivada`');
+            const warnSection = warnLines.join('\n');
 
             // ── Auditoría ─────────────────────────────────────────
             let auditSection = '`No configurado`';

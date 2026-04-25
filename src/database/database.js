@@ -178,21 +178,68 @@ const MIGRATIONS = [
         version: 13,
         description: 'Warn acumulático (umbral + acción) y auto-cierre de tickets por inactividad',
         up(db) {
-            // Warn auto-action en guild_config
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_threshold INTEGER DEFAULT 0`);
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action TEXT DEFAULT 'none'`);
-            db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action_duration TEXT`);
-            // Auto-cierre de tickets
-            db.exec(`ALTER TABLE guild_config ADD COLUMN ticket_autoclose_hours INTEGER DEFAULT 0`);
-            db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT (datetime('now'))`);
+            const gcCols = db.pragma('table_info(guild_config)').map(c => c.name);
+            if (!gcCols.includes('warn_threshold'))       db.exec(`ALTER TABLE guild_config ADD COLUMN warn_threshold INTEGER DEFAULT 0`);
+            if (!gcCols.includes('warn_action'))          db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action TEXT DEFAULT 'none'`);
+            if (!gcCols.includes('warn_action_duration')) db.exec(`ALTER TABLE guild_config ADD COLUMN warn_action_duration TEXT`);
+            if (!gcCols.includes('ticket_autoclose_hours')) db.exec(`ALTER TABLE guild_config ADD COLUMN ticket_autoclose_hours INTEGER DEFAULT 0`);
+            const tkCols = db.pragma('table_info(tickets)').map(c => c.name);
+            // SQLite no permite DEFAULT (datetime('now')) en ALTER TABLE → DEFAULT NULL
+            if (!tkCols.includes('last_activity_at')) db.exec(`ALTER TABLE tickets ADD COLUMN last_activity_at TEXT DEFAULT NULL`);
         },
     },
     {
         version: 14,
         description: 'Expiración automática de warns (columna expires_at en sanctions)',
         up(db) {
-            db.exec(`ALTER TABLE sanctions ADD COLUMN expires_at TEXT`);
+            const cols = db.pragma('table_info(sanctions)').map(c => c.name);
+            if (!cols.includes('expires_at')) {
+                db.exec(`ALTER TABLE sanctions ADD COLUMN expires_at TEXT`);
+            }
             db.exec(`CREATE INDEX IF NOT EXISTS idx_sanctions_expires ON sanctions(expires_at) WHERE expires_at IS NOT NULL`);
+        },
+    },
+    {
+        version: 15,
+        description: 'Caché de nombres de usuario de Discord',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS user_cache (
+                    user_id    TEXT PRIMARY KEY,
+                    username   TEXT NOT NULL,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            `);
+        },
+    },
+    {
+        version: 16,
+        description: 'Expiración global de warns (warn_default_expiry en guild_config)',
+        up(db) {
+            const cols = db.pragma('table_info(guild_config)').map(c => c.name);
+            if (!cols.includes('warn_default_expiry')) {
+                db.exec(`ALTER TABLE guild_config ADD COLUMN warn_default_expiry TEXT DEFAULT NULL`);
+            }
+        },
+    },
+    {
+        version: 17,
+        description: 'Columna priority en tickets (high, medium, low)',
+        up(db) {
+            const cols = db.pragma('table_info(tickets)').map(c => c.name);
+            if (!cols.includes('priority')) {
+                db.exec(`ALTER TABLE tickets ADD COLUMN priority TEXT DEFAULT NULL`);
+            }
+        },
+    },
+    {
+        version: 18,
+        description: 'Columna avatar_hash en user_cache',
+        up(db) {
+            const cols = db.pragma('table_info(user_cache)').map(c => c.name);
+            if (!cols.includes('avatar_hash')) {
+                db.exec(`ALTER TABLE user_cache ADD COLUMN avatar_hash TEXT DEFAULT NULL`);
+            }
         },
     },
 ];
@@ -406,6 +453,8 @@ function updateGuildConfig(guildId, field, value) {
         // v13
         'warn_threshold', 'warn_action', 'warn_action_duration',
         'ticket_autoclose_hours',
+        // v16
+        'warn_default_expiry',
     ];
     if (!allowed.includes(field)) throw new Error(`Campo no permitido: ${field}`);
     
@@ -529,7 +578,7 @@ function removeDepartment(id, guildId) {
 
 function createTicket(guildId, channelId, userId, departmentId, subject, preAssignedNumber = null) {
     const ticketNumber = preAssignedNumber !== null ? preAssignedNumber : incrementTicketCounter(guildId);
-    run(`INSERT INTO tickets (guild_id, channel_id, user_id, department_id, subject) VALUES (?, ?, ?, ?, ?)`,
+    run(`INSERT INTO tickets (guild_id, channel_id, user_id, department_id, subject, priority) VALUES (?, ?, ?, ?, ?, 'low')`,
         [guildId, channelId, userId, departmentId, subject]);
     const ticket = queryOne('SELECT * FROM tickets WHERE channel_id = ?', [channelId]);
     return { ...ticket, number: ticketNumber };
@@ -578,6 +627,10 @@ function updateTicketRating(ticketId, rating, comment = null) {
     } else if (comment !== null) {
         run('UPDATE tickets SET rating_comment = ? WHERE id = ?', [comment, ticketId]);
     }
+}
+
+function setTicketPriority(channelId, priority) {
+    run('UPDATE tickets SET priority = ? WHERE channel_id = ?', [priority, channelId]);
 }
 
 // ============================================================
@@ -929,6 +982,24 @@ function updateTicketLastActivity(channelId) {
 }
 
 /**
+ * Guarda o actualiza el nombre en caché de un usuario de Discord.
+ * No‐op si los argumentos son falsy o si la tabla no existe aún.
+ */
+function cacheUser(userId, username, avatarHash = null) {
+    if (!userId || !username) return;
+    try {
+        getDatabase().prepare(`
+            INSERT INTO user_cache (user_id, username, avatar_hash, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(user_id) DO UPDATE SET
+                username    = excluded.username,
+                avatar_hash = COALESCE(excluded.avatar_hash, user_cache.avatar_hash),
+                updated_at  = excluded.updated_at
+        `).run(userId, username, avatarHash ?? null);
+    } catch (_) { /* no‐critical */ }
+}
+
+/**
  * Devuelve todos los tickets abiertos que superan el umbral de inactividad de su servidor.
  * Usa COALESCE(last_activity_at, created_at) como fallback para tickets sin actividad registrada.
  */
@@ -977,6 +1048,7 @@ module.exports = {
     setTranscriptUrl,
     setCloseAuditLogId,
     updateTicketRating,
+    setTicketPriority,
     // Audit
     addAuditLog,
     getAuditLogs,
@@ -1009,4 +1081,6 @@ module.exports = {
     // Tickets — actividad y auto-cierre
     updateTicketLastActivity,
     getTicketsForAutoClose,
+    // User cache
+    cacheUser,
 };
