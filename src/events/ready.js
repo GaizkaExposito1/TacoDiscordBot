@@ -4,6 +4,7 @@ const env = require('../config/env');
 const { exec } = require('child_process');
 const path = require('path');
 const { startHeartbeat } = require('../utils/heartbeat');
+const { setupGuildOnJoin } = require('../database/database');
 
 module.exports = {
     name: Events.ClientReady, // v15 ready replacement
@@ -14,6 +15,19 @@ module.exports = {
         logger.info(`[Bot] 📡 Servidores: ${client.guilds.cache.size}`);
         logger.info(`[Bot] 🔧 Comandos: ${client.commands.size}`);
         logger.info('━'.repeat(50));
+
+        // Asegurar que todos los guilds donde está el bot tienen fila en guild_config
+        // (cubre servidores añadidos antes del evento guildCreate)
+        let seeded = 0;
+        for (const guild of client.guilds.cache.values()) {
+            try {
+                setupGuildOnJoin(guild.id);
+                seeded++;
+            } catch (e) {
+                logger.warn(`[Ready] No se pudo seedear guild ${guild.id}: ${e.message}`);
+            }
+        }
+        if (seeded > 0) logger.info(`[Ready] Guilds verificados/seeded: ${seeded}`);
 
         // Programar backup cada 24 horas y ejecutar una al iniciar
         const runBackup = () => {

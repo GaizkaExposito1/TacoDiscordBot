@@ -5,6 +5,7 @@ const { requireLevel } = require('../../../utils/permCheck');
 const { getGuildConfig } = require('../../../database/database');
 
 module.exports = {
+    module: 'audit',
     data: new SlashCommandBuilder()
         .setName('audit')
         .setDescription('Sistema de logs y auditoría')

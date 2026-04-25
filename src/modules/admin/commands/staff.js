@@ -6,6 +6,7 @@ const staffStats = require('../subcommands/stats/staffStats');
 const leaderboard = require('../subcommands/stats/leaderboard');
 
 module.exports = {
+    module: 'general',
     data: new SlashCommandBuilder()
         .setName('staff')
         .setDescription('Comandos de estadísticas y gamificación de Staff')

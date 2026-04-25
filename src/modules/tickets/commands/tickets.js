@@ -84,6 +84,7 @@ async function updateLivePanel(client, guildId) {
 }
 
 module.exports = {
+    module: 'tickets',
     data: new SlashCommandBuilder()
         .setName('tickets')
         .setDescription('Comando unificado para gestión de tickets')

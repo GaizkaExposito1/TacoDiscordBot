@@ -6,6 +6,7 @@ const { getTicketStats, getGuildConfig } = require('../../../database/database')
 const { getMemberLevel } = require('../../../utils/permCheck');
 
 module.exports = {
+    module: 'general',
     data: new SlashCommandBuilder()
         .setName('botinfo')
         .setDescription('Muestra información y estadísticas del bot.'),

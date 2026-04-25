@@ -7,6 +7,7 @@ const setupSuggestions = require('../subcommands/suggestions/setup');
 const suggestionAction = require('../subcommands/suggestions/action');
 
 module.exports = {
+    module: 'suggestions',
     data: new SlashCommandBuilder()
         .setName('suggestions')
         .setDescription('Sistema de sugerencias de TacoLand')

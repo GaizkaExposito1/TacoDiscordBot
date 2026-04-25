@@ -17,6 +17,7 @@ const rolesInfo = require('../subcommands/moderation/rolesInfo');
 const slowmode = require('../subcommands/moderation/slowmode');
 
 module.exports = {
+    module: 'moderation',
     data: new SlashCommandBuilder()
         .setName('moderation')
         .setDescription('Comandos de moderación general')

@@ -5,6 +5,7 @@ const { getAuditConfig } = require('../../audit/utils/auditDb');
 const logger = require('../../../utils/logger');
 
 module.exports = {
+    module: 'admin',
     data: new SlashCommandBuilder()
         .setName('config')
         .setDescription('Muestra un resumen completo de toda la configuración del servidor. [Solo Op]')

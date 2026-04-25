@@ -1,7 +1,7 @@
 const { handleComponentInteraction } = require('../handlers/interactionHandler');
 const { simpleEmbed } = require('../utils/embeds');
 const { COLORS } = require('../utils/constants');
-const { isModuleEnabled } = require('../database/database');
+const { isModuleEnabled, getCommandPermission } = require('../database/database');
 
 const logger = require('../utils/logger'); // Importar logger
 const { safeExecute } = require('../utils/errorHandler'); // Importar wrapper seguro
@@ -26,6 +26,33 @@ module.exports = {
                         )],
                         flags: 64,
                     });
+                }
+            }
+
+            // Verificar permisos de comando personalizados (overrides del dashboard)
+            if (interaction.guildId) {
+                const subcommand = interaction.options.getSubcommand(false);
+                const commandKey = subcommand
+                    ? `${interaction.commandName} ${subcommand}`
+                    : interaction.commandName;
+
+                const override = getCommandPermission(interaction.guildId, commandKey);
+                if (override) {
+                    // Si el comando está desactivado, bloquearlo
+                    if (override.enabled === 0) {
+                        return interaction.reply({
+                            embeds: [simpleEmbed(
+                                '\u274c Comando desactivado',
+                                `El comando \`/${commandKey}\` está desactivado en este servidor.`,
+                                COLORS.DANGER
+                            )],
+                            flags: 64,
+                        });
+                    }
+                    // Inyectar el nivel mínimo personalizado para que requireLevel lo use
+                    if (override.level) {
+                        interaction._permOverride = override.level;
+                    }
                 }
             }
 

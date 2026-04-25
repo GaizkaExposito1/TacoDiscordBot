@@ -34,12 +34,14 @@ function hasMinLevel(member, config, minLevel) {
 
 /**
  * Comprueba el nivel mínimo y responde con error si no lo cumple.
+ * Si la interaction tiene `_permOverride`, ese nivel tiene prioridad sobre minLevel.
  * Devuelve true si pasa, false si fue rechazado.
  */
 async function requireLevel(interaction, config, minLevel) {
-    if (!hasMinLevel(interaction.member, config, minLevel)) {
+    const effectiveMin = interaction._permOverride ?? minLevel;
+    if (!hasMinLevel(interaction.member, config, effectiveMin)) {
         await interaction.reply({
-            content: `❌ Necesitas el rango de **${LEVEL_LABELS[minLevel]}** para usar este comando.`,
+            content: `❌ Necesitas el rango de **${LEVEL_LABELS[effectiveMin] ?? effectiveMin}** para usar este comando.`,
             ephemeral: true,
         });
         return false;

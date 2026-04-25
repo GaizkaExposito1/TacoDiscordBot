@@ -180,6 +180,7 @@ module.exports = {
 
 
 module.exports = {
+    module: 'general',
     data: new SlashCommandBuilder()
         .setName('help')
         .setDescription('Muestra la lista de comandos disponibles y ayuda sobre el bot.'),
