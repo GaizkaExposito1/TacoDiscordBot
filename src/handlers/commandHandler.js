@@ -30,6 +30,7 @@ function loadCommands(client) {
             if (command.data && command.execute) {
                 // Clonamos el objeto comando para no modificar la referencia original del require
                 const cmd = { ...command };
+                cmd.module = mod; // Carpeta del módulo (admin / audit / general / tickets)
 
                 // Si estamos en entorno de desarrollo, añadir prefijo 'd'
                 if (env.NODE_ENV === 'development') {

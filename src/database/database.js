@@ -10,6 +10,10 @@ const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 let db = null;
 const configCache = new Map(); // Cache en memoria para configuraciones
 
+// ── Módulos del sistema ─────────────────────────────────────────────────────────────────
+// Nombres de carpetas en src/modules/ — se usan para activar/desactivar por guild
+const MODULE_NAMES = ['admin', 'audit', 'general', 'tickets'];
+
 // ── Migraciones versionadas ─────────────────────────────────────────────────
 //
 // Cada objeto define una versión de esquema y su función `up(db)`.
@@ -242,6 +246,48 @@ const MIGRATIONS = [
             }
         },
     },
+    // ── Feature: Multi-Guild Ilimitado ──
+    {
+        version: 19,
+        description: 'Multi-guild: columnas active, bot_nickname, bot_avatar_url en guild_config',
+        up(db) {
+            const cols = db.pragma('table_info(guild_config)').map(c => c.name);
+            if (!cols.includes('active'))         db.exec(`ALTER TABLE guild_config ADD COLUMN active INTEGER DEFAULT 1`);
+            if (!cols.includes('bot_nickname'))   db.exec(`ALTER TABLE guild_config ADD COLUMN bot_nickname TEXT`);
+            if (!cols.includes('bot_avatar_url')) db.exec(`ALTER TABLE guild_config ADD COLUMN bot_avatar_url TEXT`);
+        },
+    },
+    {
+        version: 20,
+        description: 'Tabla guild_modules (activar/desactivar módulos por servidor)',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS guild_modules (
+                    guild_id    TEXT NOT NULL,
+                    module_name TEXT NOT NULL,
+                    enabled     INTEGER DEFAULT 1,
+                    PRIMARY KEY (guild_id, module_name)
+                );
+                CREATE INDEX IF NOT EXISTS idx_guild_modules_guild ON guild_modules(guild_id);
+            `);
+        },
+    },
+    {
+        version: 21,
+        description: 'Tabla guild_command_permissions (permisos por comando por servidor)',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS guild_command_permissions (
+                    guild_id     TEXT NOT NULL,
+                    command_name TEXT NOT NULL,
+                    level        TEXT DEFAULT NULL CHECK(level IS NULL OR level IN ('mod','admin','op')),
+                    enabled      INTEGER DEFAULT 1,
+                    PRIMARY KEY (guild_id, command_name)
+                );
+                CREATE INDEX IF NOT EXISTS idx_gcp_guild ON guild_command_permissions(guild_id);
+            `);
+        },
+    },
 ];
 
 // Última versión que aplicaba el sistema antiguo de ALTER TABLE manual.
@@ -349,6 +395,7 @@ function initDatabase() {
         }
 
         runMigrations(db);
+        seedAllGuildModules();
 
         logger.info('[DB] Base de datos inicializada correctamente (better-sqlite3).');
 
@@ -455,6 +502,8 @@ function updateGuildConfig(guildId, field, value) {
         'ticket_autoclose_hours',
         // v16
         'warn_default_expiry',
+        // multi-guild identity
+        'active', 'bot_nickname', 'bot_avatar_url',
     ];
     if (!allowed.includes(field)) throw new Error(`Campo no permitido: ${field}`);
     
@@ -1014,6 +1063,117 @@ function getTicketsForAutoClose() {
     `, []);
 }
 
+// ============================================================
+// MULTI-GUILD
+// ============================================================
+
+/**
+ * Siembra filas de guild_modules para todos los guilds existentes.
+ * Se llama tras las migraciones para que los servidores pre-existentes tengan sus módulos.
+ */
+function seedAllGuildModules() {
+    try {
+        const guilds = queryAll('SELECT guild_id FROM guild_config', []);
+        if (guilds.length === 0) return;
+        const stmt = db.prepare('INSERT OR IGNORE INTO guild_modules (guild_id, module_name, enabled) VALUES (?, ?, 1)');
+        const seed = db.transaction(() => {
+            for (const { guild_id } of guilds) {
+                for (const moduleName of MODULE_NAMES) {
+                    stmt.run(guild_id, moduleName);
+                }
+            }
+        });
+        seed();
+        logger.info(`[DB] Módulos sembrados para ${guilds.length} servidor(es).`);
+    } catch (err) {
+        logger.warn('[DB] Error al sembrar módulos de guilds:', err.message);
+    }
+}
+
+/**
+ * Inicializa la config de un servidor al unirse el bot.
+ * Crea la fila si no existe (o la reactiva si ya existía) y siembra los módulos.
+ */
+function setupGuildOnJoin(guildId) {
+    const existing = queryOne('SELECT guild_id FROM guild_config WHERE guild_id = ?', [guildId]);
+    if (!existing) {
+        run('INSERT INTO guild_config (guild_id, active) VALUES (?, 1)', [guildId]);
+    } else {
+        run("UPDATE guild_config SET active = 1, updated_at = datetime('now') WHERE guild_id = ?", [guildId]);
+    }
+    configCache.delete(guildId);
+    // Sembrar módulos (INSERT OR IGNORE para no pisar configuraciones previas)
+    for (const moduleName of MODULE_NAMES) {
+        run('INSERT OR IGNORE INTO guild_modules (guild_id, module_name, enabled) VALUES (?, ?, 1)', [guildId, moduleName]);
+    }
+    logger.info(`[Guild] ✅ Config inicializada/activada: ${guildId}`);
+}
+
+/**
+ * Marca un servidor como inactivo (soft delete) al salir el bot.
+ * Los datos se conservan por si el bot vuelve.
+ */
+function deactivateGuild(guildId) {
+    run("UPDATE guild_config SET active = 0, updated_at = datetime('now') WHERE guild_id = ?", [guildId]);
+    configCache.delete(guildId);
+    logger.info(`[Guild] 💤 Servidor desactivado: ${guildId}`);
+}
+
+/**
+ * Devuelve todos los módulos de un guild con su estado enabled.
+ * Siembra los que falten antes de consultar.
+ */
+function getGuildModules(guildId) {
+    for (const moduleName of MODULE_NAMES) {
+        run('INSERT OR IGNORE INTO guild_modules (guild_id, module_name, enabled) VALUES (?, ?, 1)', [guildId, moduleName]);
+    }
+    return queryAll('SELECT module_name, enabled FROM guild_modules WHERE guild_id = ? ORDER BY module_name', [guildId]);
+}
+
+/**
+ * Activa o desactiva un módulo para un guild.
+ */
+function setGuildModule(guildId, moduleName, enabled) {
+    if (!MODULE_NAMES.includes(moduleName)) throw new Error(`Módulo desconocido: ${moduleName}`);
+    run(`
+        INSERT INTO guild_modules (guild_id, module_name, enabled) VALUES (?, ?, ?)
+        ON CONFLICT(guild_id, module_name) DO UPDATE SET enabled = excluded.enabled
+    `, [guildId, moduleName, enabled ? 1 : 0]);
+    return getGuildModules(guildId);
+}
+
+/**
+ * Comprueba si un módulo está activo para un guild.
+ * Falla de forma permisiva (true) si no hay fila o hay error de DB.
+ */
+function isModuleEnabled(guildId, moduleName) {
+    try {
+        const row = queryOne('SELECT enabled FROM guild_modules WHERE guild_id = ? AND module_name = ?', [guildId, moduleName]);
+        if (!row) return true; // Sin fila → asumir activo
+        return row.enabled === 1;
+    } catch (_) {
+        return true; // Fail open
+    }
+}
+
+/**
+ * Devuelve los permisos de comandos personalizados de un guild.
+ */
+function getCommandPermissions(guildId) {
+    return queryAll('SELECT command_name, level, enabled FROM guild_command_permissions WHERE guild_id = ? ORDER BY command_name', [guildId]);
+}
+
+/**
+ * Actualiza o crea el permiso de un comando para un guild.
+ */
+function setCommandPermission(guildId, commandName, level, enabled) {
+    run(`
+        INSERT INTO guild_command_permissions (guild_id, command_name, level, enabled) VALUES (?, ?, ?, ?)
+        ON CONFLICT(guild_id, command_name) DO UPDATE SET level = excluded.level, enabled = excluded.enabled
+    `, [guildId, commandName, level ?? null, enabled ? 1 : 0]);
+    return getCommandPermissions(guildId);
+}
+
 module.exports = {
     backupDatabase,
     deleteTicketHistory,
@@ -1021,14 +1181,24 @@ module.exports = {
     initDatabase,
     getDatabase,
     saveDatabaseSync,
+    MODULE_NAMES,
     // Guild
     getGuildConfig,
     updateGuildConfig,
+    setupGuildOnJoin,
+    deactivateGuild,
     incrementTicketCounter,
     incrementDepartmentTicketCount,
     decrementDepartmentTicketCount,
     setPanelReference,
     getPanelReference,
+    // Módulos
+    getGuildModules,
+    setGuildModule,
+    isModuleEnabled,
+    // Permisos por comando
+    getCommandPermissions,
+    setCommandPermission,
     // Messages
     getTicketMessage,
     setTicketMessage,

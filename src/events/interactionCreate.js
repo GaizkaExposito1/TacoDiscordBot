@@ -1,6 +1,7 @@
 const { handleComponentInteraction } = require('../handlers/interactionHandler');
 const { simpleEmbed } = require('../utils/embeds');
 const { COLORS } = require('../utils/constants');
+const { isModuleEnabled } = require('../database/database');
 
 const logger = require('../utils/logger'); // Importar logger
 const { safeExecute } = require('../utils/errorHandler'); // Importar wrapper seguro
@@ -13,6 +14,20 @@ module.exports = {
         if (interaction.isChatInputCommand()) {
             const command = interaction.client.commands.get(interaction.commandName);
             if (!command) return;
+
+            // Verificar si el módulo está habilitado en este servidor
+            if (command.module && interaction.guildId) {
+                if (!isModuleEnabled(interaction.guildId, command.module)) {
+                    return interaction.reply({
+                        embeds: [simpleEmbed(
+                            '\u274c Módulo desactivado',
+                            `El módulo \`${command.module}\` no está habilitado en este servidor.\n-# Un administrador puede activarlo desde el dashboard o contactando con el propietario.`,
+                            COLORS.DANGER
+                        )],
+                        flags: 64,
+                    });
+                }
+            }
 
             // Ejecución segura con wrapper
             await safeExecute(interaction, () => command.execute(interaction));
