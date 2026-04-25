@@ -50,7 +50,7 @@ async function logAudit(client, guildId, action, executorId, targetId, details, 
             .setTitle(`${emoji} Registro de Auditoría`)
             .setColor(COLORS.INFO)
             .setTimestamp()
-            .setFooter({ text: `Tacoland Network | ID: ${executorId}` });
+            .setFooter({ text: `${process.env.BOT_NAME || 'TacoBot'} | ID: ${executorId}` });
 
         // Si es un log de CIERRE DE TICKET con formato especial
         if (action === AUDIT_ACTIONS.TICKET_CLOSE && typeof details === 'object') {

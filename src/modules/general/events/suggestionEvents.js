@@ -42,7 +42,7 @@ module.exports = {
                     })
                     .setDescription(content)
                     .setColor(0xFFAA00)
-                    .setFooter({ text: 'TacoLand Suggestions', iconURL: interaction.guild.iconURL() })
+                    .setFooter({ text: `${process.env.BOT_NAME || 'TacoBot'} Suggestions`, iconURL: interaction.guild.iconURL() })
                     .setTimestamp();
 
                 const message = await channel.send({ embeds: [embed] });

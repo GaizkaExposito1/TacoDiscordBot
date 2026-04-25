@@ -175,7 +175,10 @@ const MIGRATIONS = [
         version: 12,
         description: 'Columna staff_only en polls (visibilidad para staff)',
         up(db) {
-            db.exec(`ALTER TABLE polls ADD COLUMN staff_only INTEGER NOT NULL DEFAULT 0`);
+            const cols = db.pragma('table_info(polls)').map(c => c.name);
+            if (!cols.includes('staff_only')) {
+                db.exec(`ALTER TABLE polls ADD COLUMN staff_only INTEGER NOT NULL DEFAULT 0`);
+            }
         },
     },
     {
@@ -284,6 +287,25 @@ const MIGRATIONS = [
                     enabled      INTEGER DEFAULT 1,
                     PRIMARY KEY (guild_id, command_name)
                 );
+                CREATE INDEX IF NOT EXISTS idx_gcp_guild ON guild_command_permissions(guild_id);
+            `);
+        },
+    },
+    {
+        version: 22,
+        description: 'Ampliar CHECK constraint de guild_command_permissions para incluir nivel user',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS guild_command_permissions_new (
+                    guild_id     TEXT NOT NULL,
+                    command_name TEXT NOT NULL,
+                    level        TEXT DEFAULT NULL CHECK(level IS NULL OR level IN ('user','mod','admin','op')),
+                    enabled      INTEGER DEFAULT 1,
+                    PRIMARY KEY (guild_id, command_name)
+                );
+                INSERT OR IGNORE INTO guild_command_permissions_new SELECT * FROM guild_command_permissions;
+                DROP TABLE guild_command_permissions;
+                ALTER TABLE guild_command_permissions_new RENAME TO guild_command_permissions;
                 CREATE INDEX IF NOT EXISTS idx_gcp_guild ON guild_command_permissions(guild_id);
             `);
         },
@@ -1164,6 +1186,13 @@ function getCommandPermissions(guildId) {
 }
 
 /**
+ * Devuelve el override de un comando concreto para un guild (o null si no hay override).
+ */
+function getCommandPermission(guildId, commandName) {
+    return queryOne('SELECT level, enabled FROM guild_command_permissions WHERE guild_id = ? AND command_name = ?', [guildId, commandName]) ?? null;
+}
+
+/**
  * Actualiza o crea el permiso de un comando para un guild.
  */
 function setCommandPermission(guildId, commandName, level, enabled) {
@@ -1198,6 +1227,7 @@ module.exports = {
     isModuleEnabled,
     // Permisos por comando
     getCommandPermissions,
+    getCommandPermission,
     setCommandPermission,
     // Messages
     getTicketMessage,

@@ -2,6 +2,8 @@
  * Constantes y valores por defecto del bot.
  */
 
+const BOT_NAME = process.env.BOT_NAME || 'TacoBot';
+
 const COLORS = {
     PRIMARY: '#5865F2',   // Blurple
     SUCCESS: '#57F287',   // Verde
@@ -34,32 +36,32 @@ const DEFAULT_MESSAGES = {
         title: '🎫 Centro de Soporte',
         description: 'Selecciona una categoria del menú inferior para abrir un ticket.\nNuestro equipo te atenderá lo antes posible.',
         color: COLORS.PRIMARY,
-        footer: 'Tacoland Network',
+        footer: BOT_NAME,
     },
     ticket_welcome: {
         title: '🎫 Ticket #{ticket_id}',
         description: 'Hola {user}, gracias por contactarnos.',
         // description: 'Hola {user}, gracias por contactarnos.\n\n**Categoria:** {department}\n**Asunto:** {subject}\n\nUn miembro del staff te atenderá pronto. Mientras tanto, describe tu problema con el mayor detalle posible.',
         color: COLORS.WARNING,
-        footer: 'Tacoland Network | Usa el botón de abajo para cerrar el ticket',
+        footer: `${BOT_NAME} | Usa el botón de abajo para cerrar el ticket`,
     },
     ticket_close: {
         title: '🔒 Ticket Cerrado',
         description: 'El ticket #{ticket_id} ha sido cerrado por {closer}.\nSe ha generado una transcripción del mismo.',
         color: COLORS.DANGER,
-        footer: 'Tacoland Network | Este canal se eliminará en breve',
+        footer: `${BOT_NAME} | Este canal se eliminará en breve`,
     },
     ticket_claimed: {
         title: '✋ Ticket Reclamado',
         description: 'Este ticket ha sido reclamado por {staff}.\nÉl/ella se encargará de tu caso.',
         color: COLORS.SUCCESS,
-        footer: 'Tacoland Network',
+        footer: BOT_NAME,
     },
     ticket_priority: {
         title: '{priority_emoji}Prioridad Actualizada',
         description: 'La prioridad ha cambiado de **{old_priority_emoji}{old_priority_label}** a **{priority_emoji}{priority_label}** por {staff}.',
         color: COLORS.WARNING,
-        footer: 'Tacoland Network',
+        footer: BOT_NAME,
     },
 };
 

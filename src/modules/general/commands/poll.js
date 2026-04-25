@@ -73,19 +73,20 @@ async function buildResultsEmbed(poll, message, closed, closedBy = null) {
     embed.addFields({ name: 'Total', value: `**${totalVotes}** votos`, inline: true });
 
     if (closed && closedBy) {
-        embed.setFooter({ text: `Cerrada por ${closedBy} • Tacoland Network` });
+        embed.setFooter({ text: `Cerrada por ${closedBy} • ${process.env.BOT_NAME || 'TacoBot'}` });
     } else if (!closed) {
         const expires = new Date(poll.expires_at);
         embed.addFields({ name: 'Cierra', value: `<t:${Math.floor(expires.getTime() / 1000)}:R>`, inline: true });
-        embed.setFooter({ text: 'Encuesta en curso • Tacoland Network' });
+        embed.setFooter({ text: `Encuesta en curso • ${process.env.BOT_NAME || 'TacoBot'}` });
     } else {
-        embed.setFooter({ text: 'Tacoland Network' });
+        embed.setFooter({ text: process.env.BOT_NAME || 'TacoBot' });
     }
 
     return embed;
 }
 
 module.exports = {
+    module: 'polls',
     data: new SlashCommandBuilder()
         .setName('poll')
         .setDescription('Sistema de encuestas de TacoLand')

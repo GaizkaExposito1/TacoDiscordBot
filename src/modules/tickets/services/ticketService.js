@@ -9,6 +9,8 @@ const {
     TextInputBuilder,
     TextInputStyle,
 } = require('discord.js');
+
+const BOT_NAME = () => process.env.BOT_NAME || 'TacoBot';
 const {
     getGuildConfig,
     getDepartments,
@@ -60,7 +62,7 @@ function resolveDbEmbed(guildId, key, vars, defaultTitle, defaultDescription, de
     const title  = applyVars(stored?.title  || defaultTitle,       vars);
     const desc   = applyVars(stored?.description || defaultDescription, vars);
     const color  = stored?.color || defaultColor;
-    const footer = stored?.footer || 'Tacoland Network';
+    const footer = stored?.footer || BOT_NAME();
     return simpleEmbed(title, desc, color).setFooter({ text: footer });
 }
 
@@ -575,7 +577,7 @@ async function processTicketClosure(interaction, reason = 'No especificada') {
             .setDescription(`Tu ticket **#${ticketNumber}** en **${guild.name}** ha sido cerrado.\nAdjuntamos la transcripción completa.`)
             .addFields({ name: '📝 Razón de cierre', value: reason || 'No especificada' })
             .setColor(COLORS.INFO)
-            .setFooter({ text: 'Tacoland Network' })
+            .setFooter({ text: BOT_NAME() })
             .setTimestamp();
 
         const dmPayload = { embeds: [dmEmbed] };
@@ -588,7 +590,7 @@ async function processTicketClosure(interaction, reason = 'No especificada') {
             .setTitle('⭐ Valoración del Servicio')
             .setDescription('Por favor, califica la atención recibida en este ticket.\nTu opinión nos ayuda a mejorar.')
             .setColor(COLORS.WARNING)
-            .setFooter({ text: 'Tacoland Network' });
+            .setFooter({ text: BOT_NAME() });
 
         const ratingRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`ticket_rate_${ticket.id}_1`).setLabel('1').setEmoji('⭐').setStyle(ButtonStyle.Secondary),
@@ -631,8 +633,7 @@ async function processTicketClosure(interaction, reason = 'No especificada') {
                         .setTitle(`📄 Transcripción — Ticket #${ticketNumber}`)
                         .setDescription(`**Departamento:** ${ticket.department_name ?? 'Desconocido'}\n**Usuario:** <@${ticket.user_id}>\n**Cerrado por:** <@${user.id}>\n**Fecha:** <t:${Math.floor(Date.now() / 1000)}:f>`)
                         .setColor(COLORS.SUCCESS)
-                        .setFooter({ text: 'Tacoland Network' })
-                        .setTimestamp();
+                        .setFooter({ text: BOT_NAME() })                        .setTimestamp();
                     await targetChannel.send({ embeds: [logEmbed], files: [transcript] });
                     logger.info(`[Tickets] Transcripción enviada al canal ${channelId}`);
                     transcriptSent = true;
@@ -822,7 +823,7 @@ async function handleRatingFeedback(interaction) {
             .setTitle('⭐ ¡Gracias por tu valoración!')
             .setDescription(`Has calificado nuestro servicio con **${rating} / 5 estrellas**.\n\n${feedback ? `**Comentario:**\n*${feedback}*` : '¡Agradecemos tu feedback!'}`)
             .setColor(COLORS.SUCCESS)
-            .setFooter({ text: 'Tacoland Network' });
+            .setFooter({ text: BOT_NAME() });
 
         // En contextos de ModalSubmit en DM, a veces `update` no funciona si el mensaje original no es referenciable fácilmente o si ha pasado tiempo.
         // Pero como el modal se abre desde el botón, podemos intentar responder o editar.

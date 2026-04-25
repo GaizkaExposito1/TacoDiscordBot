@@ -37,11 +37,12 @@ function buildEmbed(guildId, key, placeholderData = {}) {
  * Construye un embed simple (auxiliar, sin DB).
  */
 function simpleEmbed(title, description, color = '#5865F2') {
+    const botName = process.env.BOT_NAME || 'TacoBot';
     return new EmbedBuilder()
         .setTitle(title)
         .setDescription(description)
         .setColor(color)
-        .setFooter({ text: 'Tacoland Network' });
+        .setFooter({ text: botName });
 }
 
 module.exports = { buildEmbed, simpleEmbed };
